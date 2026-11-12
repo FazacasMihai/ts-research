@@ -1,0 +1,13 @@
+# Python virtual environment and caches
+.venv/
+__pycache__/
+*.pyc
+
+# Jupyter / Colab
+.ipynb_checkpoints/
+
+# Notes for Claude (kept local only)
+CLAUDE.md
+
+# Downloaded datasets and caches (re-created by the scripts)
+data/

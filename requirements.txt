@@ -1,0 +1,10 @@
+numpy
+scipy
+scikit-learn
+aeon            # benchmark datasets (BasicMotions is bundled, no download needed)
+# For later experiments:
+torch           # LSTM, GRU and the continuous-time networks
+ncps            # LTC and CfC layers
+torchcde        # Neural CDEs
+pydmd           # optional: full-featured DMD (src/features.py has a small version)
+iisignature     # optional: fast signatures; may need C++ build tools on Windows
