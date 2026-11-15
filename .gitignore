@@ -3,6 +3,9 @@
 __pycache__/
 *.pyc
 
+# Editor settings (PyCharm)
+.idea/
+
 # Jupyter / Colab
 .ipynb_checkpoints/
 

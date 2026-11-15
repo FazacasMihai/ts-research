@@ -40,9 +40,15 @@ def dmd_features(series, rank=4, delays=5):
     return out
 
 
-def extract(X, fn, **kwargs):
+def extract(X, fn, times=None, **kwargs):
     """Apply a feature function to every series.
 
-    X: aeon format (n_cases, n_channels, n_timepoints).
+    X: aeon format, a 3D array (n_cases, n_channels, n_timepoints) or a list
+       of (n_channels, n_timepoints_i) arrays when lengths differ.
+    times: optional, one array of timestamps per series (e.g. from
+       `missing.drop_points`). Passed to `fn` as `times=`; only use it with
+       functions that accept it (signature_features).
     """
-    return np.stack([fn(x.T, **kwargs) for x in X])
+    if times is None:
+        return np.stack([fn(np.asarray(x).T, **kwargs) for x in X])
+    return np.stack([fn(np.asarray(x).T, times=t, **kwargs) for x, t in zip(X, times)])
