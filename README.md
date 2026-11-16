@@ -25,7 +25,7 @@ python -m experiments.exp02_missing_data
 python -m experiments.exp03_neural
 ```
 
-`exp03_neural` trains the neural models (for now GRU and LSTM) on the same
+`exp03_neural` trains the neural models (for now GRU, LSTM and CfC) on the same
 datasets and the same gaps as `exp02`, and writes to `results/exp03_neural.csv`.
 The full grid is slow on a CPU; run it on a GPU (e.g. Colab). Quick check:
 

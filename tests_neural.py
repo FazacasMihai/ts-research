@@ -49,4 +49,25 @@ for name in MODELS:
     _, pred = evaluate(model, small)
     assert (pred == ys).all(), f"{name} could not fit 10 examples"
 
+# CfC uses the time gaps in its equations: same values, different gaps -> different output.
+torch.manual_seed(0)
+cfc = build_model("CfC", n_channels=3, n_classes=2, hidden=16)
+x = torch.randn(4, 6, 3)
+lengths = torch.full((4,), 6)
+even = torch.arange(6.0).expand(4, 6)
+uneven = torch.tensor([0.0, 1, 4, 5, 9, 10]).expand(4, 6)
+assert not torch.allclose(cfc(x, even, lengths), cfc(x, uneven, lengths))
+
+# Each series gets its own gaps (checks the (batch, 1) shape): running a batch
+# gives the same output as running every series on its own, also when the
+# batch size equals the hidden size.
+torch.manual_seed(0)
+cfc = build_model("CfC", n_channels=3, n_classes=2, hidden=16)
+x = torch.randn(16, 6, 3)
+t = torch.cumsum(torch.rand(16, 6) * 3, dim=1)
+lengths = torch.full((16,), 6)
+together = cfc(x, t, lengths)
+one_by_one = torch.cat([cfc(x[i:i + 1], t[i:i + 1], lengths[i:i + 1]) for i in range(16)])
+assert torch.allclose(together, one_by_one, atol=1e-5)
+
 print("neural-model checks passed")
