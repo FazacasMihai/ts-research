@@ -9,7 +9,7 @@ __pycache__/
 # Jupyter / Colab
 .ipynb_checkpoints/
 
-# Notes for Claude (kept local only)
+# Local notes
 CLAUDE.md
 
 # Downloaded datasets and caches (re-created by the scripts)

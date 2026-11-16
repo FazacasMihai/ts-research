@@ -1,6 +1,6 @@
 # Continuous-time models vs. mathematical features for time series classification
 
-Research project code. See `CLAUDE.md` for the full plan and decisions.
+Research project code.
 
 ## Setup
 
@@ -19,8 +19,18 @@ Always run from the project root (so `src` can be imported):
 ```bash
 python tests_signature.py
 python tests_missing.py
+python tests_neural.py
 python -m experiments.exp01_first_test
 python -m experiments.exp02_missing_data
+python -m experiments.exp03_neural
+```
+
+`exp03_neural` trains the neural models (for now GRU and LSTM) on the same
+datasets and the same gaps as `exp02`, and writes to `results/exp03_neural.csv`.
+The full grid is slow on a CPU; run it on a GPU (e.g. Colab). Quick check:
+
+```bash
+python -m experiments.exp03_neural --datasets BasicMotions --fracs 0 --seeds 0
 ```
 
 `exp02_missing_data` removes 0/30/50/70% of the time points of every series and
