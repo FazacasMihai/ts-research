@@ -70,4 +70,18 @@ together = cfc(x, t, lengths)
 one_by_one = torch.cat([cfc(x[i:i + 1], t[i:i + 1], lengths[i:i + 1]) for i in range(16)])
 assert torch.allclose(together, one_by_one, atol=1e-5)
 
+# Neural CDE sees time through the time channel: different gaps -> different output.
+torch.manual_seed(0)
+cde = build_model("NeuralCDE", n_channels=3, n_classes=2, hidden=16)
+x = torch.randn(4, 6, 3)
+lengths = torch.full((4,), 6)
+assert not torch.allclose(cde(x, even, lengths), cde(x, uneven, lengths))
+
+# A constant path (no change in values or time) leaves the hidden state as it
+# started, so the output depends only on the starting point.
+flat_x = x[:, :1].expand(4, 6, 3)
+flat_t = torch.zeros(4, 6)
+start_only = cde(x[:, :1], flat_t[:, :1], torch.ones(4, dtype=torch.long))
+assert torch.allclose(cde(flat_x, flat_t, lengths), start_only, atol=1e-5)
+
 print("neural-model checks passed")

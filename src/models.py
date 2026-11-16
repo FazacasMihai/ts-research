@@ -73,6 +73,66 @@ class CfCClassifier(nn.Module):
         return self.head(last_valid(torch.stack(states, dim=1), lengths))
 
 
+class CDEFunc(nn.Module):
+    """Vector field f(z): hidden state -> (hidden x input channels) matrix."""
+
+    def __init__(self, in_channels, hidden):
+        super().__init__()
+        self.in_channels, self.hidden = in_channels, hidden
+        self.net = nn.Sequential(nn.Linear(hidden, hidden), nn.ReLU(),
+                                 nn.Linear(hidden, hidden * in_channels))
+
+    def forward(self, s, z):
+        # tanh keeps the vector field bounded, as in Kidger et al. (2020).
+        return torch.tanh(self.net(z)).view(z.shape[0], self.hidden, self.in_channels)
+
+
+class NeuralCDEClassifier(nn.Module):
+    """Neural controlled differential equation (Kidger et al. 2020).
+
+    The observations, with time as an extra channel, are joined into a
+    continuous path X (linear interpolation). The hidden state follows
+        dz = f(z) dX,    z(0) = W X(0),
+    solved with RK4, one step per segment between two observations, and the
+    class scores are read from z at the end. Because time is a channel, a long
+    gap between two points is a long move of the path in the time direction,
+    and the model sees it.
+
+    With linear interpolation, on the segment from observation i to i+1 the
+    path moves at a constant rate dX_i = X_{i+1} - X_i (parametrised by
+    observation index), so the CDE there is the ODE dz/ds = f(z) dX_i. We
+    write that RK4 step out ourselves. It is the same computation as
+    torchcde.cdeint with LinearInterpolation and rk4 / step 1, except at the
+    segment ends: torchcde takes the slope at an observation from the segment
+    *before* it, so the solver's last stage of every step uses the wrong
+    segment, and the first padded step still moves z. Here each step uses
+    only its own segment: on padding (repeated last point) dX = 0, z does
+    not change, and padding never alters a prediction.
+    """
+
+    def __init__(self, n_channels, n_classes, hidden=64):
+        super().__init__()
+        self.initial = nn.Linear(n_channels + 1, hidden)
+        self.func = CDEFunc(n_channels + 1, hidden)
+        self.head = nn.Linear(hidden, n_classes)
+
+    def forward(self, x, t, lengths):
+        path = torch.cat([t.unsqueeze(-1), x], dim=-1)  # (n, L, channels + 1)
+        z = self.initial(path[:, 0])
+        for dX in torch.diff(path, dim=1).unbind(dim=1):
+            dX = dX.unsqueeze(-1)  # (n, channels + 1, 1)
+
+            def g(z):
+                return (self.func(None, z) @ dX).squeeze(-1)
+
+            k1 = g(z)
+            k2 = g(z + k1 / 2)
+            k3 = g(z + k2 / 2)
+            k4 = g(z + k3)
+            z = z + (k1 + 2 * k2 + 2 * k3 + k4) / 6
+        return self.head(z)
+
+
 def build_model(name, n_channels, n_classes, hidden=64):
     if name == "GRU":
         return RNNClassifier(n_channels, n_classes, hidden, cell="gru")
@@ -80,10 +140,12 @@ def build_model(name, n_channels, n_classes, hidden=64):
         return RNNClassifier(n_channels, n_classes, hidden, cell="lstm")
     if name == "CfC":
         return CfCClassifier(n_channels, n_classes, hidden)
+    if name == "NeuralCDE":
+        return NeuralCDEClassifier(n_channels, n_classes, hidden)
     raise ValueError(f"unknown model {name}")
 
 
-MODELS = ["GRU", "LSTM", "CfC"]
+MODELS = ["GRU", "LSTM", "CfC", "NeuralCDE"]
 
 
 def count_params(model):
