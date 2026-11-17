@@ -1,7 +1,6 @@
-"""Plan step 2: first simple test to check the setup works.
+"""First test: feature methods + logistic regression on BasicMotions.
 
-Signature features + logistic regression on BasicMotions, compared with a
-summary-statistics baseline and DMD features. Run from the project root:
+Run from the project root:
 
     python -m experiments.exp01_first_test
 """

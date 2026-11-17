@@ -1,9 +1,7 @@
-"""One training loop for every neural model (same budget for all).
+"""Training loop shared by all neural models.
 
-Adam, cross-entropy, mini-batches. After every epoch the loss on a
-validation set (taken from the train split, never the test split) is checked;
-training stops when it has not improved for `patience` epochs, and the
-weights from the best epoch are kept.
+Adam + cross-entropy. Stops when the validation loss has not improved for
+`patience` epochs, and keeps the best weights.
 """
 import copy
 import time
@@ -20,7 +18,7 @@ def set_seed(seed):
 
 @torch.no_grad()
 def evaluate(model, data, batch_size=256):
-    """Mean cross-entropy and predicted classes on a SeriesData."""
+    """Return the mean loss and the predicted classes."""
     model.eval()
     loss_fn = nn.CrossEntropyLoss(reduction="sum")
     total, preds = 0.0, []
@@ -34,7 +32,7 @@ def evaluate(model, data, batch_size=256):
 
 def train_model(model, train, val, epochs=500, patience=50, lr=1e-3,
                 batch_size=32, seed=0, verbose=False):
-    """Train in place; returns a dict with epochs run, best val loss, seconds."""
+    """Train the model and return epochs run, best epoch, val loss and time."""
     set_seed(seed)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     loss_fn = nn.CrossEntropyLoss()

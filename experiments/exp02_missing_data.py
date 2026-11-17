@@ -1,10 +1,8 @@
-"""Experiment 2 (feature methods): accuracy when time points are missing.
+"""Experiment 2, feature methods: accuracy when time points are missing.
 
-For every dataset, missing fraction and seed, a fraction of the time points of
-every series (train and test) is removed at random, keeping the real
-timestamps. Then each feature method + logistic regression is trained on the
-train split and scored on the test split. One row per run is written to a CSV
-file, so later scripts can build the tables for the report.
+For each dataset, missing fraction and seed: remove points, compute
+features, train logistic regression, score on the test split. One CSV row
+per run.
 
 Run from the project root:
 
@@ -34,12 +32,7 @@ FIELDS = ["dataset", "missing_frac", "seed", "method", "n_features",
 
 
 def features(method, values, times, lengths):
-    """Turn the (gappy) series into one feature matrix for the given method.
-
-    - summary statistics: computed on the points that are left;
-    - signatures: use the real (uneven) timestamps;
-    - DMD: needs equal steps, so interpolate back to the original grid first.
-    """
+    """Feature matrix for one method. DMD first goes back to an even grid."""
     if method == "Summary statistics":
         return extract(values, summary_stats)
     if method == "Signature depth 2":
@@ -91,7 +84,7 @@ def main():
                   f"{X_train[0].shape[0]} channels, up to {max(len_train)} points")
 
             for frac in args.fracs:
-                # With nothing removed every seed gives the same data: run once.
+                # Nothing removed: every seed gives the same data, so run once.
                 seeds = args.seeds[:1] if frac == 0 else args.seeds
                 for seed in seeds:
                     # Different (but fixed) gaps for train and test.
@@ -109,7 +102,6 @@ def main():
                               f"macroF1={row['macro_f1']:.3f}  "
                               f"time={row['seconds']:.1f}s")
 
-    # Short summary: mean accuracy over seeds for every dataset / method / fraction.
     df = pd.read_csv(out)
     table = df.pivot_table(index=["dataset", "method"], columns="missing_frac",
                            values="accuracy", aggfunc="mean")

@@ -5,23 +5,20 @@ from .signature import add_basepoint, add_time, signature
 
 
 def summary_stats(series):
-    """Simple baseline: mean, std, min, max and total change per channel."""
+    """Mean, std, min, max and total change of each channel."""
     s = np.asarray(series, dtype=float)
     return np.concatenate([s.mean(0), s.std(0), s.min(0), s.max(0), s[-1] - s[0]])
 
 
 def signature_features(series, depth=3, times=None):
-    """Signature of the time-augmented, base-pointed path."""
+    """Signature of the series, with time added as a channel."""
     return signature(add_basepoint(add_time(series, times)), depth=depth)
 
 
 def dmd_features(series, rank=4, delays=5):
-    """Koopman/DMD features: rhythms (frequencies) and trends (growth rates).
+    """DMD features: frequency and growth rate of the main modes.
 
-    The series is stacked with delayed copies of itself (a Hankel matrix),
-    then exact DMD finds the best linear rule x_{k+1} ~ A x_k. The eigenvalues
-    of A give, for each mode, a frequency and a growth rate.
-    Assumes evenly spaced samples: interpolate irregular data first.
+    Needs equally spaced points.
     """
     s = np.asarray(series, dtype=float)
     n, d = s.shape
@@ -43,11 +40,8 @@ def dmd_features(series, rank=4, delays=5):
 def extract(X, fn, times=None, **kwargs):
     """Apply a feature function to every series.
 
-    X: aeon format, a 3D array (n_cases, n_channels, n_timepoints) or a list
-       of (n_channels, n_timepoints_i) arrays when lengths differ.
-    times: optional, one array of timestamps per series (e.g. from
-       `missing.drop_points`). Passed to `fn` as `times=`; only use it with
-       functions that accept it (signature_features).
+    X: series of shape (n_channels, n_timepoints). If `times` is given, each
+    series gets its own times (only for signature_features).
     """
     if times is None:
         return np.stack([fn(np.asarray(x).T, **kwargs) for x in X])

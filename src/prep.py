@@ -1,19 +1,4 @@
-"""Turn (gappy) series into PyTorch tensors for the neural models.
-
-Input is what `missing.drop_points` returns: lists `values[i]` of shape
-(n_channels, k_i) and `times[i]` of shape (k_i,) in [0, 1].
-
-All neural models get the same `SeriesData`:
-    x        (n, L, c)  values, normalised per channel with train statistics
-    t        (n, L)     times, scaled so that one original step = 1
-    lengths  (n,)       number of real (not padded) points of each series
-    y        (n,)       class index
-
-Series shorter than L are padded by repeating their last point (same value,
-same time). The models read their output at position lengths - 1, so the
-padding never changes a prediction; for a Neural CDE a constant path after
-the end also leaves the hidden state unchanged.
-"""
+"""Turn series (with gaps) into PyTorch tensors for the neural models."""
 from dataclasses import dataclass
 
 import numpy as np
@@ -22,6 +7,7 @@ import torch
 
 @dataclass
 class SeriesData:
+    """x: values (n, L, c), t: times (n, L), lengths: real points per series, y: labels."""
     x: torch.Tensor
     t: torch.Tensor
     lengths: torch.Tensor
@@ -40,7 +26,7 @@ class SeriesData:
 
 
 class Normaliser:
-    """Per-channel mean / std, computed on the training series only."""
+    """Scale each channel to mean 0, std 1, using the training data only."""
 
     def fit(self, values):
         allpoints = np.concatenate([np.asarray(v, dtype=float) for v in values], axis=1)
@@ -53,10 +39,10 @@ class Normaliser:
 
 
 def to_tensors(values, times, y, time_scale):
-    """Pad to a common length and stack into a SeriesData.
+    """Stack series into one SeriesData.
 
-    time_scale: number of steps of the original grid (original length - 1), so
-    that a gap of one original step becomes 1.0 in `t`.
+    Times are multiplied by time_scale so that one original step = 1.
+    Shorter series are padded by repeating their last point.
     """
     lengths = np.array([v.shape[1] for v in values])
     L, c, n = lengths.max(), values[0].shape[0], len(values)
@@ -73,5 +59,5 @@ def to_tensors(values, times, y, time_scale):
 
 
 def time_gaps(t):
-    """Time since the previous point; for the first point, time since t = 0."""
+    """Time since the previous point (for the first point: since t = 0)."""
     return torch.diff(t, dim=1, prepend=torch.zeros_like(t[:, :1]))

@@ -1,12 +1,8 @@
-"""Experiments 1 + 2 for the neural models: clean data and missing time points.
+"""Experiments 1 + 2, neural models: clean data and missing time points.
 
-Same datasets, missing fractions and seeds as exp02_missing_data, and the
-same gaps (drop_points with seed (s, 0) for train and (s, 1) for test), so the
-results can be compared row by row with the feature methods.
-
-For every run: 20% of the train split (stratified) is set aside for early
-stopping, the model is trained with the shared loop in src/train.py, and the
-test split is used once at the end. One row per run goes to a CSV file.
+Uses the same datasets, gaps and seeds as exp02. 20% of the train split is
+kept aside for early stopping; the test split is used once at the end.
+One CSV row per run.
 
 Run from the project root:
 
@@ -37,7 +33,7 @@ FIELDS = ["dataset", "missing_frac", "seed", "method", "n_params", "accuracy",
 
 
 def prepare(X_train, y_train, X_test, y_test, frac, seed):
-    """Remove points, normalise with train statistics, split off validation."""
+    """Remove points, normalise, and split off a validation set."""
     time_scale = max(series_lengths(X_train) + series_lengths(X_test)) - 1
     v_train, t_train = drop_points(X_train, frac, seed=(seed, 0))
     v_test, t_test = drop_points(X_test, frac, seed=(seed, 1))
@@ -58,8 +54,7 @@ def main():
     parser.add_argument("--seeds", nargs="+", type=int, default=SEEDS)
     parser.add_argument("--models", nargs="+", default=MODELS, choices=MODELS)
     parser.add_argument("--hidden", type=int, default=64)
-    # Small datasets give only 1-2 updates per epoch, so the budget is in the
-    # hundreds; early stopping usually ends training long before the limit.
+    # Small datasets give only 1-2 updates per epoch, so allow many epochs.
     parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--patience", type=int, default=50)
     parser.add_argument("--out", default="results/exp03_neural.csv")

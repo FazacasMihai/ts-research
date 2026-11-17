@@ -1,30 +1,24 @@
-"""Neural classifiers. All share one interface:
+"""Neural classifiers.
 
-    model(x, t, lengths) -> class scores of shape (n, n_classes)
-
-with x, t, lengths as in `prep.SeriesData`. This way the training loop does
-not need to know which model it is training.
+Every model is called as model(x, t, lengths) and returns class scores
+of shape (n, n_classes).
 """
 import torch
-from ncps.torch import CfCCell
+from ncps.torch import CfCCell, LTCCell
+from ncps.wirings import FullyConnected
 from torch import nn
 
 from .prep import time_gaps
 
 
 def last_valid(seq, lengths):
-    """Output at the last real (not padded) step: seq (n, L, h) -> (n, h)."""
+    """Pick the output at the last real (not padded) step."""
     idx = (lengths - 1).clamp(min=0)
     return seq[torch.arange(seq.shape[0], device=seq.device), idx]
 
 
 class RNNClassifier(nn.Module):
-    """Discrete-time baseline: GRU or LSTM.
-
-    The network only sees "step 1, step 2, ...", so the time since the previous
-    point is given as an extra input channel. It has to learn what that gap
-    means; continuous-time models use it in their equations instead.
-    """
+    """GRU or LSTM. The time gap is given as an extra input channel."""
 
     def __init__(self, n_channels, n_classes, hidden=64, cell="gru"):
         super().__init__()
@@ -39,21 +33,11 @@ class RNNClassifier(nn.Module):
 
 
 class CfCClassifier(nn.Module):
-    """Closed-form continuous-time network (CfC, Hasani et al. 2022).
+    """CfC (Hasani et al. 2022). The time gap goes into the cell's equations.
 
-    Gets only the values; the time since the previous point goes into the
-    cell's equations (`ts`), which interpolate between two states depending on
-    how much time has passed: h = (1 - s) * f1 + s * f2 with
-    s = sigmoid(a(x, h) * ts + b(x, h)).
-
-    We loop over the ncps *cell* ourselves instead of using the ncps `CfC`
-    wrapper: the wrapper squeezes the time gaps to shape (batch,), and the cell
-    then multiplies them with a (batch, hidden) tensor, which lines the gaps up
-    with hidden units instead of series (it fails, or is silently wrong when
-    batch size == hidden size). Here the gaps have shape (batch, 1).
-
-    backbone_units = hidden by default (the library uses 128), to keep the
-    parameter count close to the GRU / LSTM baselines.
+    We loop over the ncps cell ourselves: the ncps CfC wrapper mixes up the
+    shape of the time gaps when a batch has more than one series.
+    backbone_units = hidden keeps the size close to GRU / LSTM.
     """
 
     def __init__(self, n_channels, n_classes, hidden=64, backbone_units=None):
@@ -73,8 +57,33 @@ class CfCClassifier(nn.Module):
         return self.head(last_valid(torch.stack(states, dim=1), lengths))
 
 
+class LTCClassifier(nn.Module):
+    """LTC (Hasani et al. 2021). Each step runs a small ODE for the time gap.
+
+    Same cell loop as CfC, for the same reason. A gap of 0 gives NaN in the
+    cell, so gaps are at least min_gap = 1 (this only changes the first point).
+    Padded steps keep the old state.
+    """
+
+    def __init__(self, n_channels, n_classes, hidden=64, ode_unfolds=6, min_gap=1.0):
+        super().__init__()
+        self.hidden, self.min_gap = hidden, min_gap
+        self.cell = LTCCell(FullyConnected(hidden), n_channels, ode_unfolds=ode_unfolds,
+                            implicit_param_constraints=True)
+        self.head = nn.Linear(hidden, n_classes)
+
+    def forward(self, x, t, lengths):
+        gaps = time_gaps(t).clamp(min=self.min_gap)
+        h = x.new_zeros(x.shape[0], self.hidden)
+        for step in range(x.shape[1]):
+            _, new_h = self.cell(x[:, step], h, gaps[:, step:step + 1])
+            real = (step < lengths).unsqueeze(-1)
+            h = torch.where(real, new_h, h)
+        return self.head(h)
+
+
 class CDEFunc(nn.Module):
-    """Vector field f(z): hidden state -> (hidden x input channels) matrix."""
+    """f(z) in dz = f(z) dX: a small network giving a (hidden x channels) matrix."""
 
     def __init__(self, in_channels, hidden):
         super().__init__()
@@ -83,31 +92,16 @@ class CDEFunc(nn.Module):
                                  nn.Linear(hidden, hidden * in_channels))
 
     def forward(self, s, z):
-        # tanh keeps the vector field bounded, as in Kidger et al. (2020).
         return torch.tanh(self.net(z)).view(z.shape[0], self.hidden, self.in_channels)
 
 
 class NeuralCDEClassifier(nn.Module):
-    """Neural controlled differential equation (Kidger et al. 2020).
+    """Neural CDE (Kidger et al. 2020): dz = f(z) dX.
 
-    The observations, with time as an extra channel, are joined into a
-    continuous path X (linear interpolation). The hidden state follows
-        dz = f(z) dX,    z(0) = W X(0),
-    solved with RK4, one step per segment between two observations, and the
-    class scores are read from z at the end. Because time is a channel, a long
-    gap between two points is a long move of the path in the time direction,
-    and the model sees it.
-
-    With linear interpolation, on the segment from observation i to i+1 the
-    path moves at a constant rate dX_i = X_{i+1} - X_i (parametrised by
-    observation index), so the CDE there is the ODE dz/ds = f(z) dX_i. We
-    write that RK4 step out ourselves. It is the same computation as
-    torchcde.cdeint with LinearInterpolation and rk4 / step 1, except at the
-    segment ends: torchcde takes the slope at an observation from the segment
-    *before* it, so the solver's last stage of every step uses the wrong
-    segment, and the first padded step still moves z. Here each step uses
-    only its own segment: on padding (repeated last point) dX = 0, z does
-    not change, and padding never alters a prediction.
+    X joins the points (with time as an extra channel) by straight lines.
+    We take one RK4 step per line segment. We don't use torchcde.cdeint,
+    because at a data point it takes the slope of the previous segment,
+    so padding would change the result.
     """
 
     def __init__(self, n_channels, n_classes, hidden=64):
@@ -117,10 +111,10 @@ class NeuralCDEClassifier(nn.Module):
         self.head = nn.Linear(hidden, n_classes)
 
     def forward(self, x, t, lengths):
-        path = torch.cat([t.unsqueeze(-1), x], dim=-1)  # (n, L, channels + 1)
+        path = torch.cat([t.unsqueeze(-1), x], dim=-1)
         z = self.initial(path[:, 0])
         for dX in torch.diff(path, dim=1).unbind(dim=1):
-            dX = dX.unsqueeze(-1)  # (n, channels + 1, 1)
+            dX = dX.unsqueeze(-1)
 
             def g(z):
                 return (self.func(None, z) @ dX).squeeze(-1)
@@ -142,10 +136,12 @@ def build_model(name, n_channels, n_classes, hidden=64):
         return CfCClassifier(n_channels, n_classes, hidden)
     if name == "NeuralCDE":
         return NeuralCDEClassifier(n_channels, n_classes, hidden)
+    if name == "LTC":
+        return LTCClassifier(n_channels, n_classes, hidden)
     raise ValueError(f"unknown model {name}")
 
 
-MODELS = ["GRU", "LSTM", "CfC", "NeuralCDE"]
+MODELS = ["GRU", "LSTM", "CfC", "NeuralCDE", "LTC"]
 
 
 def count_params(model):

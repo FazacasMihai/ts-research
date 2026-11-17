@@ -1,17 +1,13 @@
-"""Path signatures in plain NumPy (no extra library needed).
+"""Path signatures in NumPy, up to depth 3.
 
-A time series is treated as a piecewise-linear path. The signature is built
-segment by segment with Chen's identity, up to depth 3.
-
-Shapes:
-    path: (n_points, d) array, one row per time step, one column per channel.
-    returns: 1D array of length d + d^2 + d^3 (for depth 3).
+The series is treated as a path of straight segments. Segments are joined
+with Chen's identity. Input: (n_points, d). Output: d + d^2 + d^3 numbers.
 """
 import numpy as np
 
 
 def _segment_signature(delta, depth):
-    """Signature of one straight segment with increment `delta` (shape d)."""
+    """Signature of one straight segment."""
     levels = [delta]
     if depth >= 2:
         levels.append(np.einsum("i,j->ij", delta, delta) / 2.0)
@@ -21,7 +17,7 @@ def _segment_signature(delta, depth):
 
 
 def _chen(a, b, depth):
-    """Combine signatures of two consecutive pieces (Chen's identity)."""
+    """Join the signatures of two pieces that follow each other."""
     out = [a[0] + b[0]]
     if depth >= 2:
         out.append(a[1] + b[1] + np.einsum("i,j->ij", a[0], b[0]))
@@ -35,7 +31,7 @@ def _chen(a, b, depth):
 
 
 def signature(path, depth=3):
-    """Truncated signature of a path, flattened into one feature vector."""
+    """Signature of a path, as one flat vector."""
     if not 1 <= depth <= 3:
         raise ValueError("depth must be 1, 2 or 3")
     path = np.asarray(path, dtype=float)
@@ -48,10 +44,7 @@ def signature(path, depth=3):
 
 
 def add_time(path, times=None):
-    """Time augmentation: add time as an extra channel.
-
-    `times` can be uneven (irregular sampling). Default: evenly spaced in [0, 1].
-    """
+    """Add time as the first channel. Times may be uneven; default: even in [0, 1]."""
     path = np.asarray(path, dtype=float)
     if times is None:
         times = np.linspace(0.0, 1.0, len(path))
