@@ -81,6 +81,29 @@ flat_t = torch.zeros(4, 6)
 start_only = cde(x[:, :1], flat_t[:, :1], torch.ones(4, dtype=torch.long))
 assert torch.allclose(cde(flat_x, flat_t, lengths), start_only, atol=1e-5)
 
+# Neural CDE: a gap of 4 with sub-steps = filling in 3 points on the line.
+torch.manual_seed(0)
+cde = build_model("NeuralCDE", n_channels=3, n_classes=2, hidden=16)
+x = torch.randn(2, 2, 3)
+t = torch.tensor([[0.0, 4.0], [0.0, 4.0]])
+w = torch.linspace(0, 1, 5).view(1, 5, 1)
+x_fine = x[:, :1] + w * (x[:, 1:] - x[:, :1])
+t_fine = torch.arange(5.0).expand(2, 5)
+sub = cde(x, t, torch.full((2,), 2))
+cde.max_step = None
+fine = cde(x_fine, t_fine, torch.full((2,), 5))
+assert torch.allclose(sub, fine, atol=1e-5)
+assert not torch.allclose(sub, cde(x, t, torch.full((2,), 2)))
+cde.max_step = 1.0
+
+# Neural CDE: a batch gives the same output as one series at a time.
+x = torch.randn(16, 6, 3)
+t = torch.cumsum(torch.rand(16, 6) * 3, dim=1)
+lengths = torch.full((16,), 6)
+together = cde(x, t, lengths)
+one_by_one = torch.cat([cde(x[i:i + 1], t[i:i + 1], lengths[i:i + 1]) for i in range(16)])
+assert torch.allclose(together, one_by_one, atol=1e-5)
+
 # LTC: uses the time gaps, no NaN, and a batch = one series at a time.
 torch.manual_seed(0)
 ltc = build_model("LTC", n_channels=3, n_classes=2, hidden=16)

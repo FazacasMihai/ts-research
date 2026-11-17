@@ -99,31 +99,47 @@ class NeuralCDEClassifier(nn.Module):
     """Neural CDE (Kidger et al. 2020): dz = f(z) dX.
 
     X joins the points (with time as an extra channel) by straight lines.
-    We take one RK4 step per line segment. We don't use torchcde.cdeint,
+    Each segment gets ceil(gap / max_step) RK4 steps, so a long gap (missing
+    points) gets as many solver steps as the points it replaces.
+    max_step=None gives one step per segment. We don't use torchcde.cdeint,
     because at a data point it takes the slope of the previous segment,
     so padding would change the result.
     """
 
-    def __init__(self, n_channels, n_classes, hidden=64):
+    def __init__(self, n_channels, n_classes, hidden=64, max_step=1.0):
         super().__init__()
+        self.max_step = max_step
         self.initial = nn.Linear(n_channels + 1, hidden)
         self.func = CDEFunc(n_channels + 1, hidden)
         self.head = nn.Linear(hidden, n_classes)
 
+    def rk4(self, z, dX):
+        """One RK4 step along a straight piece with increment dX."""
+        dX = dX.unsqueeze(-1)
+
+        def g(z):
+            return (self.func(None, z) @ dX).squeeze(-1)
+
+        k1 = g(z)
+        k2 = g(z + k1 / 2)
+        k3 = g(z + k2 / 2)
+        k4 = g(z + k3)
+        return z + (k1 + 2 * k2 + 2 * k3 + k4) / 6
+
     def forward(self, x, t, lengths):
         path = torch.cat([t.unsqueeze(-1), x], dim=-1)
         z = self.initial(path[:, 0])
-        for dX in torch.diff(path, dim=1).unbind(dim=1):
-            dX = dX.unsqueeze(-1)
-
-            def g(z):
-                return (self.func(None, z) @ dX).squeeze(-1)
-
-            k1 = g(z)
-            k2 = g(z + k1 / 2)
-            k3 = g(z + k2 / 2)
-            k4 = g(z + k3)
-            z = z + (k1 + 2 * k2 + 2 * k3 + k4) / 6
+        deltas = torch.diff(path, dim=1)
+        if self.max_step is None:
+            n_steps = torch.ones_like(t[:, 1:])
+        else:
+            n_steps = torch.ceil(time_gaps(t)[:, 1:] / self.max_step - 1e-6).clamp(min=1)
+        for dX, n in zip(deltas.unbind(dim=1), n_steps.unbind(dim=1)):
+            # Every series takes its own number of steps; finished ones wait.
+            piece = dX / n.unsqueeze(-1)
+            for k in range(int(n.max())):
+                active = (k < n).unsqueeze(-1)
+                z = torch.where(active, self.rk4(z, piece), z)
         return self.head(z)
 
 
