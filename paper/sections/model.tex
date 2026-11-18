@@ -1,0 +1,51 @@
+\section{Modeling}\label{sec:model}
+
+\subsection{Problem}
+\todo{A dataset is a set of pairs $(x, y)$. Each series is
+$x = ((t_1, x_1), \dots, (t_n, x_n))$ with $t_1 < \dots < t_n$ and
+$x_i \in \mathbb{R}^c$; the label is $y \in \{1, \dots, K\}$. Goal: learn
+$f$ with $f(x) = y$. The times may be uneven and $n$ may differ between
+series.}
+
+\subsection{Missing-data model}
+\todo{For a series with $T$ points and fraction $p$: keep
+$\max(2, T - \mathrm{round}(pT))$ points chosen at random, with their
+original times scaled to $[0, 1]$. Fixed seeds, so every method sees the
+same gaps; different seeds for train and test.}
+
+\subsection{Mathematical features}
+\todo{Summary statistics (baseline). Signature: definition as iterated
+integrals, truncation at depth $m$, piecewise-linear path, Chen's identity,
+time channel and basepoint; number of features $d + d^2 + d^3$. DMD: delay
+embedding, exact DMD, eigenvalues $\to$ growth rates and frequencies.
+Classifier: standardisation + logistic regression.}
+
+\subsection{Neural models}
+\todo{Shared form: hidden state updated along the series, class scores
+from the last real step. GRU / LSTM with the time gap as an extra input.
+LTC: the ODE of the cell, solved with a fixed number of steps per gap. CfC:
+the closed-form update. Neural CDE: $z_t = z_{t_1} + \int_{t_1}^{t}
+f_\theta(z_s)\,dX_s$ with $X$ the linear interpolation of $(t_i, x_i)$,
+solved with RK4 steps of at most one original time step.}
+
+\subsection{Experimental design}
+\todo{Datasets (table: train/test size, channels, length, classes).
+Official train/test split; 20\% of train for validation and early stopping;
+equal hyperparameter grid for every neural model, chosen on validation;
+seeds; metrics: accuracy, macro-F1, training time, parameters / features.}
+
+\begin{table}[ht]
+\centering
+\caption{Datasets. \todo{fill in}}
+\label{tab:datasets}
+\begin{tabular}{lccccc}
+\toprule
+Dataset & Train & Test & Channels & Length & Classes \\
+\midrule
+BasicMotions & & & & & \\
+Libras & & & & & \\
+NATOPS & & & & & \\
+ArticularyWordRecognition & & & & & \\
+\bottomrule
+\end{tabular}
+\end{table}

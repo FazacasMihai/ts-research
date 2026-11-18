@@ -14,3 +14,14 @@ CLAUDE.md
 
 # Downloaded datasets and caches (re-created by the scripts)
 data/
+
+# LaTeX build files
+paper/*.aux
+paper/*.log
+paper/*.bbl
+paper/*.blg
+paper/*.out
+paper/*.toc
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.synctex.gz

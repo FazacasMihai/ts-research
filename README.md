@@ -22,7 +22,18 @@ python tests_missing.py
 python tests_neural.py
 python -m experiments.exp01_first_test
 python -m experiments.exp02_missing_data
-python -m experiments.exp03_neural
+python -m experiments.tune_neural
+python -m experiments.exp03_neural --params results/tune_neural_best.json
+```
+
+`tune_neural` gives every neural model the same small grid (learning rate 1e-3, 3e-3,
+1e-2; hidden size 32, 64) on clean data and the validation split only. It writes every
+run to `results/tune_neural.csv` and the setting with the lowest validation loss per
+dataset and model to `results/tune_neural_best.json`. Finished runs are skipped, so a
+stopped search can be started again. Quick check:
+
+```bash
+python -m experiments.tune_neural --datasets BasicMotions --models GRU
 ```
 
 `exp03_neural` trains the neural models (GRU, LSTM, CfC, Neural CDE, LTC) on the same
@@ -40,3 +51,9 @@ downloaded once into `data/uea/`. For a quick run:
 ```bash
 python -m experiments.exp02_missing_data --datasets BasicMotions --seeds 0
 ```
+
+## Paper
+
+`paper/main.tex` (amsart) includes the chapters in `paper/sections/`; the bibliography is
+`paper/references.bib`. Red `[TODO: ...]` notes mark what is still to be written.
+Compile with `latexmk -pdf main.tex` inside `paper/`, or upload the folder to Overleaf.

@@ -2,15 +2,17 @@
 
 Uses the same datasets, gaps and seeds as exp02. 20% of the train split is
 kept aside for early stopping; the test split is used once at the end.
-One CSV row per run.
+One CSV row per run. --params loads the settings chosen by tune_neural.
 
 Run from the project root:
 
     python -m experiments.exp03_neural --datasets BasicMotions --fracs 0 --seeds 0
     python -m experiments.exp03_neural            # full grid (use a GPU / Colab)
+    python -m experiments.exp03_neural --params results/tune_neural_best.json
 """
 import argparse
 import csv
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -28,8 +30,8 @@ from src.train import evaluate, set_seed, train_model
 DATASETS = ["BasicMotions", "Libras", "NATOPS", "ArticularyWordRecognition"]
 FRACS = [0.0, 0.3, 0.5, 0.7]
 SEEDS = [0, 1, 2]
-FIELDS = ["dataset", "missing_frac", "seed", "method", "n_params", "accuracy",
-          "macro_f1", "seconds", "epochs", "best_epoch", "device"]
+FIELDS = ["dataset", "missing_frac", "seed", "method", "lr", "hidden", "n_params",
+          "accuracy", "macro_f1", "seconds", "epochs", "best_epoch", "device"]
 
 
 def prepare(X_train, y_train, X_test, y_test, frac, seed):
@@ -54,12 +56,15 @@ def main():
     parser.add_argument("--seeds", nargs="+", type=int, default=SEEDS)
     parser.add_argument("--models", nargs="+", default=MODELS, choices=MODELS)
     parser.add_argument("--hidden", type=int, default=64)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--params", help="JSON from tune_neural (overrides --hidden, --lr)")
     # Small datasets give only 1-2 updates per epoch, so allow many epochs.
     parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--patience", type=int, default=50)
     parser.add_argument("--out", default="results/exp03_neural.csv")
     args = parser.parse_args()
 
+    params = json.loads(Path(args.params).read_text()) if args.params else {}
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}")
     out = Path(args.out)
@@ -83,14 +88,20 @@ def main():
                     fit, val, test = prepare(X_train, y_train, X_test, y_test, frac, seed)
                     fit, val, test = fit.to(device), val.to(device), test.to(device)
                     for method in args.models:
+                        chosen = params.get(name, {}).get(method, {})
+                        if params and not chosen:
+                            print(f"  no tuned settings for {name} {method}, using defaults")
+                        lr = chosen.get("lr", args.lr)
+                        hidden = chosen.get("hidden", args.hidden)
                         set_seed(seed)
-                        model = build_model(method, n_channels, n_classes, args.hidden).to(device)
+                        model = build_model(method, n_channels, n_classes, hidden).to(device)
                         info = train_model(model, fit, val, epochs=args.epochs,
-                                           patience=args.patience, seed=seed)
+                                           patience=args.patience, lr=lr, seed=seed)
                         _, pred = evaluate(model, test)
                         y_true = test.y.cpu().numpy()
                         row = {"dataset": name, "missing_frac": frac, "seed": seed,
-                               "method": method, "n_params": count_params(model),
+                               "method": method, "lr": lr, "hidden": hidden,
+                               "n_params": count_params(model),
                                "accuracy": accuracy_score(y_true, pred),
                                "macro_f1": f1_score(y_true, pred, average="macro"),
                                "seconds": info["seconds"], "epochs": info["epochs"],

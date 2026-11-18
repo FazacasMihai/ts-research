@@ -1,0 +1,57 @@
+% Target: Studia Universitatis Babes-Bolyai Informatica (amsart, max 16 pages,
+% abstract max 250 words, BibTeX style acm).
+\documentclass{amsart}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+% Visible placeholder; remove every \todo before submitting.
+\DeclareRobustCommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+
+\newtheorem{definition}{Definition}
+
+\begin{document}
+
+\title[Continuous-time models for irregular time series]{Continuous-time
+neural networks and mathematical features for classifying irregularly
+sampled time series}
+
+% Plain text here: amsart puts the name in capitals in the page headers.
+\author{Author Name}
+\address{Faculty, University, City, Romania}
+\email{author@example.com}
+
+% MSC 2010 codes (68T05: learning and adaptive systems; 62M10: time series).
+% ACM CCS version (1998 or 2012) still to confirm with the professor.
+\subjclass[2010]{68T05, 62M10}
+
+\keywords{time series classification, missing data, neural controlled
+differential equations, closed-form continuous-time networks, path
+signatures, dynamic mode decomposition}
+
+\begin{abstract}
+\todo{At most 250 words: problem, methods compared, datasets and missing-data
+setting, main result, cost comparison.}
+\end{abstract}
+
+\maketitle
+
+\input{sections/introduction}
+\input{sections/related_work}
+\input{sections/model}
+\input{sections/case_study}
+\input{sections/conclusion}
+
+% Prints every entry of references.bib while the text has few citations.
+% Remove once the chapters cite what they use.
+\nocite{*}
+
+\bibliographystyle{acm}
+\bibliography{references}
+
+\end{document}
