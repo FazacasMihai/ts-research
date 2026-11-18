@@ -1,20 +1,221 @@
 \section{Case study}\label{sec:case}
 
+This section reports the first results on the four datasets of
+Table~\ref{tab:datasets}. The feature methods were run on the full grid of
+Section~\ref{sec:design}. The neural models were run only in a first,
+smaller check, before the hyperparameter search, so their results are
+preliminary.
+
 \subsection{Setup}
-\todo{What was run: feature methods on four UEA datasets with 0, 30, 50
-and 70\% of the points removed, three seeds; neural models on the same
-gaps. Hardware and software versions.}
+
+All methods are implemented in Python 3.14 with NumPy 2.3,
+scikit-learn 1.9 \cite{pedregosa2011sklearn} and PyTorch 2.15; the
+datasets are loaded with aeon 1.6, and the CfC and LTC cells come from
+ncps 1.0.1. The signatures and DMD are our own NumPy code. All runs were
+made on one laptop CPU (Intel Core Ultra 7 155H, 32 GB of memory), without
+a GPU, so the times below are wall-clock times on that machine and are
+only comparable with each other. The results of every run are stored in
+CSV files in the project repository.
+
+Three implementation problems came up and are worth reporting, because
+they change the results without raising an error.
+\begin{itemize}
+\item The sequence wrappers for CfC and LTC in ncps 1.0.1 reshape the
+time gaps of a batch to a vector of length equal to the batch size before
+multiplying them with the hidden state. This fails when the batch size
+differs from the hidden size and is silently wrong when the two are equal.
+We therefore loop over the cells ourselves and pass the gaps with shape
+(batch, 1).
+\item The LTC update divides by the step length (Section~\ref{sec:neural}),
+so a gap of zero gives an invalid result; the first gap is therefore set
+to at least one step.
+\item With \texttt{torchcde} 0.2.5, padding a series (repeating its last
+point) changed the output of the Neural CDE: the linear interpolation
+takes the derivative at an observation from the segment before it, so the
+state keeps moving after the last real point. We therefore solve the CDE
+with our own Runge--Kutta steps, segment by segment.
+\end{itemize}
+Each of these is checked by an automatic test: a batch gives the same
+output as one series at a time, and padding does not change the output.
 
 \subsection{Feature methods}
-\todo{Table of mean accuracy (and spread over seeds) from
-results/exp02\_missing\_features.csv.}
 
-\subsection{Neural models}
-\todo{Results from results/exp03\_neural.csv with the tuned settings.}
+Table~\ref{tab:features} shows the test accuracy of the feature methods.
+Macro-F1 follows the accuracy closely (the largest difference between
+the two means is 0.027), because the classes are balanced, so only the
+accuracy is shown.
+
+\begin{table}[ht]
+\centering
+\small
+\caption{Test accuracy of the feature methods with logistic regression,
+with $p$ of the points removed. For $p > 0$: mean over three seeds, with
+the standard deviation in brackets. The best method of each column is in
+bold.}
+\label{tab:features}
+\begin{tabular}{lcccc}
+\toprule
+Method & $p = 0$ & $p = 0.3$ & $p = 0.5$ & $p = 0.7$ \\
+\midrule
+\multicolumn{5}{l}{\emph{BasicMotions}} \\
+Summary stats & \textbf{1.000} & \textbf{1.000} (0.000) & \textbf{0.975} (0.000) & \textbf{0.958} (0.038) \\
+Signature $m=2$ & 0.900 & 0.883 (0.029) & 0.833 (0.038) & 0.800 (0.100) \\
+Signature $m=3$ & 0.900 & 0.858 (0.063) & 0.867 (0.029) & 0.758 (0.076) \\
+DMD & 0.850 & 0.700 (0.025) & 0.683 (0.118) & 0.583 (0.063) \\
+\midrule
+\multicolumn{5}{l}{\emph{Libras}} \\
+Summary stats & 0.683 & 0.669 (0.008) & 0.680 (0.031) & \textbf{0.639} (0.029) \\
+Signature $m=2$ & 0.472 & 0.407 (0.003) & 0.435 (0.021) & 0.389 (0.029) \\
+Signature $m=3$ & \textbf{0.700} & \textbf{0.689} (0.017) & \textbf{0.683} (0.025) & 0.620 (0.053) \\
+DMD & 0.389 & 0.420 (0.041) & 0.424 (0.008) & 0.380 (0.059) \\
+\midrule
+\multicolumn{5}{l}{\emph{NATOPS}} \\
+Summary stats & 0.833 & 0.813 (0.012) & 0.841 (0.003) & 0.794 (0.006) \\
+Signature $m=2$ & 0.833 & 0.831 (0.003) & 0.843 (0.014) & 0.819 (0.032) \\
+Signature $m=3$ & \textbf{0.872} & \textbf{0.867} (0.015) & \textbf{0.859} (0.017) & \textbf{0.820} (0.040) \\
+DMD & 0.383 & 0.333 (0.006) & 0.315 (0.045) & 0.265 (0.042) \\
+\midrule
+\multicolumn{5}{l}{\emph{ArticularyWordRecognition}} \\
+Summary stats & 0.893 & 0.904 (0.012) & 0.897 (0.012) & 0.897 (0.007) \\
+Signature $m=2$ & 0.967 & 0.942 (0.008) & 0.940 (0.007) & 0.934 (0.011) \\
+Signature $m=3$ & \textbf{0.980} & \textbf{0.979} (0.004) & \textbf{0.979} (0.004) & \textbf{0.984} (0.004) \\
+DMD & 0.187 & 0.196 (0.014) & 0.194 (0.008) & 0.176 (0.031) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three observations stand out.
+\begin{enumerate}
+\item The depth-3 signature is the best method on three of the four
+datasets, and it loses little accuracy when points are removed: from
+$p = 0$ to $p = 0.7$ it drops by 0.052 on NATOPS and 0.080 on Libras, and
+not at all on ArticularyWordRecognition. Since the signature works on the
+path with its real times, a missing point only makes one segment of the
+path longer. Depth 3 is clearly better than depth 2 on Libras (0.700
+against 0.472), which suggests that the third level carries information
+about the shape of the movement that the second level does not.
+\item BasicMotions is too easy to separate the methods: the summary
+statistics already reach 100\% on clean data. On Libras, with only two
+channels, the summary statistics are almost as good as the depth-3
+signature and slightly better at $p = 0.7$.
+\item DMD with 8 features is much weaker than the other methods, except on
+clean BasicMotions: 0.187 on ArticularyWordRecognition (25 classes) and 0.383 on
+NATOPS. A likely reason is that a few growth rates and frequencies of one
+linear model of the whole series do not describe the shape of a movement,
+and that interpolating over gaps smooths away part of what is left; it
+also drops the most with missing points on NATOPS and BasicMotions.
+\end{enumerate}
+The spread over seeds is at most 0.118 (DMD on BasicMotions, $p = 0.5$)
+and below 0.06 in most cells, so differences of a few hundredths between
+methods are not significant with three seeds.
+
+\subsection{Neural models (preliminary)}
+
+The five neural models were first run on BasicMotions and Libras with
+$p = 0$ and $p = 0.5$, one seed, and the same default settings for all
+($H = 64$, $\eta = 10^{-3}$); the hyperparameter search of
+Section~\ref{sec:neural} had not been run yet. Table~\ref{tab:neural}
+compares them with the two best feature methods on exactly the same data
+and gaps.
+
+\begin{table}[ht]
+\centering
+\caption{Preliminary test accuracy, one seed (seed 0), default
+hyperparameters for the neural models. The feature methods use the same
+gaps.}
+\label{tab:neural}
+\begin{tabular}{lcccc}
+\toprule
+& \multicolumn{2}{c}{BasicMotions} & \multicolumn{2}{c}{Libras} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5}
+Method & $p = 0$ & $p = 0.5$ & $p = 0$ & $p = 0.5$ \\
+\midrule
+GRU & 0.875 & 0.775 & 0.600 & 0.478 \\
+LSTM & 0.825 & 0.925 & 0.572 & 0.572 \\
+CfC & 0.625 & 0.600 & 0.478 & 0.467 \\
+Neural CDE & 0.825 & 0.550 & \textbf{0.717} & 0.478 \\
+LTC & 0.675 & 0.725 & 0.261 & 0.189 \\
+\midrule
+Summary stats & \textbf{1.000} & \textbf{0.975} & 0.683 & 0.678 \\
+Signature $m=3$ & 0.900 & 0.850 & 0.700 & \textbf{0.711} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+In this first check, the only continuous-time model that beats both the
+GRU and the LSTM is the Neural CDE on clean Libras (0.717), and it loses
+that advantage when half of the points are removed. A feature method is
+the most accurate in the other three settings. CfC stopped early in every
+run (best epoch between 16 and 89), and LTC trained slowly and stayed far
+behind on Libras; this may point to unsuitable default settings rather
+than to a property of the models. These results therefore do not yet answer RQ1 and
+RQ2; they motivate the equal hyperparameter search and the full grid with
+three seeds.
+
+The Neural CDE was first solved with a single Runge--Kutta step per
+segment, so removing points also removed solver steps. With that solver
+its accuracy at $p = 0.5$ was 0.475 on BasicMotions and 0.472 on Libras.
+With one step per original time step (Section~\ref{sec:neural}) it is
+0.550 and 0.478, the same at $p = 0$. The coarser solver therefore
+explains only a small part of the drop.
 
 \subsection{Cost}
-\todo{Training time and number of parameters / features against accuracy.}
+
+The feature methods are cheap: computing the features and fitting the
+classifier takes less than 0.4\,s on BasicMotions and Libras, and at most
+1.9\,s on any dataset (depth-3 signature on NATOPS, with 16\,275
+features). The neural models have between 14\,000 and 34\,000 trainable
+parameters and are much slower to train (Table~\ref{tab:cost}). LTC is the
+most expensive, about 80 times slower per epoch than the GRU on
+BasicMotions, mainly because every step solves its ODE in six sub-steps. Note
+that the size of the depth-3 signature grows with the cube of the number
+of channels, while the size of the neural models grows mainly with $H$;
+only the Neural CDE also grows with the channels (34\,052 parameters on
+BasicMotions, 110\,214 on NATOPS).
+
+\begin{table}[ht]
+\centering
+\caption{Size and training time on BasicMotions, $p = 0$: number of
+features or trainable parameters, total time and time per epoch (one
+seed, default settings).}
+\label{tab:cost}
+\begin{tabular}{lrrr}
+\toprule
+Method & Size & Time (s) & Per epoch (s) \\
+\midrule
+Summary stats & 30 & 0.02 & -- \\
+Signature $m=3$ & 399 & 0.17 & -- \\
+DMD & 8 & 0.03 & -- \\
+GRU & 14\,276 & 6.0 & 0.03 \\
+LSTM & 18\,948 & 4.0 & 0.02 \\
+CfC & 21\,444 & 7.5 & 0.09 \\
+Neural CDE & 34\,052 & 82.1 & 0.75 \\
+LTC & 18\,512 & 800.5 & 2.23 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Discussion}
-\todo{Answers to RQ1--RQ3 so far; limitations (small datasets, few seeds,
-random rather than structured missingness).}
+
+The first results give a partial answer to RQ3. The depth-3 signature
+with logistic regression is the best feature method on three of the four
+datasets, stays stable when up to 70\% of the points are removed, and
+trains in seconds; in the preliminary comparison, a feature method matches
+or beats the neural models in three of the four settings. For RQ1 and RQ2
+the evidence is not yet sufficient: the neural models were run with one
+seed, on two datasets, without tuning, and in that setting the
+continuous-time models were not better overall than the GRU and LSTM.
+
+The case study has clear limitations. The datasets are small (40 to 275
+training series), so a single wrong prediction moves the accuracy by up to
+2.5\%, and three seeds give only a rough idea of the spread. Points are
+removed completely at random, which is the easiest kind of missing data;
+real irregular data often has structure, such as long gaps or more
+observations when something changes. Finally, the depth-3 signature has
+more features than there are training series on three of the four
+datasets (16\,275 features for 180 series on NATOPS), which is workable
+only because the classifier is regularised.
+
+The next steps are the equal hyperparameter search and the full neural
+grid with three seeds on all four datasets, followed by a dataset with
+naturally irregular times.

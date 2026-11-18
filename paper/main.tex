@@ -4,6 +4,7 @@
 
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
+\usepackage{lmodern}  % sharp (vector) fonts with T1
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}
 \usepackage{booktabs}
@@ -14,6 +15,17 @@
 \DeclareRobustCommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
 
 \newtheorem{definition}{Definition}
+
+% \crcategories{...} prints the ACM CR line right under the MSC line.
+\makeatletter
+\def\@crcategories{}
+\newcommand{\crcategories}[1]{\def\@crcategories{#1}}
+\let\@origsetsubjclass\@setsubjclass
+\def\@setsubjclass{\@origsetsubjclass
+  \ifx\@crcategories\@empty\else
+    \par{\itshape 1998 CR Categories and Descriptors.}\enspace\@crcategories\@addpunct.
+  \fi}
+\makeatother
 
 \begin{document}
 
@@ -27,17 +39,20 @@ sampled time series}
 \email{author@example.com}
 
 % MSC 2010 codes (68T05: learning and adaptive systems; 62M10: time series).
-% ACM CCS version (1998 or 2012) still to confirm with the professor.
 \subjclass[2010]{68T05, 62M10}
+% ACM CCS 1998 codes, checked on acm.org (1998 classification, full listing).
+\crcategories{I.2.6 [Artificial Intelligence]: Learning -- Connectionism and
+neural nets; I.5.2 [Pattern Recognition]: Design Methodology -- Classifier
+design and evaluation, Feature evaluation and selection; G.3 [Probability and
+Statistics]: Time series analysis}
 
 \keywords{time series classification, missing data, neural controlled
 differential equations, closed-form continuous-time networks, path
 signatures, dynamic mode decomposition}
 
-\begin{abstract}
-\todo{At most 250 words: problem, methods compared, datasets and missing-data
-setting, main result, cost comparison.}
-\end{abstract}
+% Abstract (max 250 words): to be written after the full results.
+% \begin{abstract}
+% \end{abstract}
 
 \maketitle
 
@@ -45,11 +60,8 @@ setting, main result, cost comparison.}
 \input{sections/related_work}
 \input{sections/model}
 \input{sections/case_study}
-\input{sections/conclusion}
-
-% Prints every entry of references.bib while the text has few citations.
-% Remove once the chapters cite what they use.
-\nocite{*}
+% Conclusion: to be written after the full results.
+% \input{sections/conclusion}
 
 \bibliographystyle{acm}
 \bibliography{references}

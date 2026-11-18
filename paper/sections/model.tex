@@ -1,51 +1,231 @@
 \section{Modeling}\label{sec:model}
 
+This section states the problem, the way missing data is simulated, the
+two families of methods that are compared, and the experimental protocol.
+The notation follows the code in the project repository, so every formula
+below is the one that is actually computed.
+
 \subsection{Problem}
-\todo{A dataset is a set of pairs $(x, y)$. Each series is
-$x = ((t_1, x_1), \dots, (t_n, x_n))$ with $t_1 < \dots < t_n$ and
-$x_i \in \mathbb{R}^c$; the label is $y \in \{1, \dots, K\}$. Goal: learn
-$f$ with $f(x) = y$. The times may be uneven and $n$ may differ between
-series.}
 
-\subsection{Missing-data model}
-\todo{For a series with $T$ points and fraction $p$: keep
-$\max(2, T - \mathrm{round}(pT))$ points chosen at random, with their
-original times scaled to $[0, 1]$. Fixed seeds, so every method sees the
-same gaps; different seeds for train and test.}
+A labelled dataset is a set of pairs $(\mathbf{x}, y)$, where $y \in
+\{1, \dots, K\}$ is a class label and $\mathbf{x}$ is a multivariate time
+series observed at increasing times,
+\[
+  \mathbf{x} = \bigl((t_1, x_1), (t_2, x_2), \dots, (t_n, x_n)\bigr),
+  \qquad t_1 < t_2 < \dots < t_n, \quad x_i \in \mathbb{R}^c .
+\]
+The number of observations $n$ and the gaps $\Delta t_i = t_i - t_{i-1}$
+may differ from one series to another. The task is to learn a classifier
+$f$ from a training set such that $f(\mathbf{x})$ predicts $y$ on unseen
+series. A model is called \emph{continuous-time} if it uses the
+observation times $t_i$ directly instead of assuming one value per fixed
+time step.
 
-\subsection{Mathematical features}
-\todo{Summary statistics (baseline). Signature: definition as iterated
-integrals, truncation at depth $m$, piecewise-linear path, Chen's identity,
-time channel and basepoint; number of features $d + d^2 + d^3$. DMD: delay
-embedding, exact DMD, eigenvalues $\to$ growth rates and frequencies.
-Classifier: standardisation + logistic regression.}
+\subsection{Missing-data model}\label{sec:missing}
 
-\subsection{Neural models}
-\todo{Shared form: hidden state updated along the series, class scores
-from the last real step. GRU / LSTM with the time gap as an extra input.
-LTC: the ODE of the cell, solved with a fixed number of steps per gap. CfC:
-the closed-form update. Neural CDE: $z_t = z_{t_1} + \int_{t_1}^{t}
-f_\theta(z_s)\,dX_s$ with $X$ the linear interpolation of $(t_i, x_i)$,
-solved with RK4 steps of at most one original time step.}
+All datasets used here are regularly sampled: a series has $T$ points,
+at the times $0, 1, \dots, T-1$. Irregular series are obtained by removing
+points at random. For a missing fraction $p \in [0, 1)$, each series keeps
+\[
+  k = \max\bigl(2,\; T - \operatorname{round}(pT)\bigr)
+\]
+of its points, chosen uniformly without replacement, and every kept point
+keeps its original time. Points are removed independently in every
+series, so two series of the same dataset have different gaps. The random
+generator is seeded, so all methods see exactly the same gaps; the
+training and test sets use different seeds. This is data
+\emph{missing completely at random}: the chance that a point is removed
+does not depend on its value.
 
-\subsection{Experimental design}
-\todo{Datasets (table: train/test size, channels, length, classes).
-Official train/test split; 20\% of train for validation and early stopping;
-equal hyperparameter grid for every neural model, chosen on validation;
-seeds; metrics: accuracy, macro-F1, training time, parameters / features.}
+\subsection{Mathematical features}\label{sec:features}
+
+The first family turns every series into a fixed-length feature vector
+and trains a linear classifier on it. The features are standardised with
+the mean and variance of the training set, and the classifier is a
+multinomial logistic regression with $L_2$ regularisation, with the
+default settings of scikit-learn \cite{pedregosa2011sklearn}. No
+hyperparameter of this family is tuned.
+
+\subsubsection*{Summary statistics (baseline)}
+For every channel: mean, standard deviation, minimum, maximum and total
+change $x_n - x_1$, which gives $5c$ features. Apart from the first and
+the last value, these statistics ignore the order of the points and the
+times, and serve as the simplest baseline.
+
+\subsubsection*{Path signatures}
+The observations are joined by straight lines into a continuous path
+$X \colon [t_1, t_n] \to \mathbb{R}^d$. Time is added as an extra channel,
+$X_t = (t, x(t))$, and the path is started at the origin by a basepoint
+\cite{morrill2020generalised}, so $d = c + 1$. The signature of $X$ is the
+sequence of its iterated integrals \cite{chen1958integration,
+lyons2022sigml}: for a word $(i_1, \dots, i_k)$ with
+$i_j \in \{1, \dots, d\}$,
+\[
+  S(X)^{i_1 \dots i_k} =
+  \int_{t_1 < u_1 < \dots < u_k < t_n}
+  dX^{i_1}_{u_1} \cdots dX^{i_k}_{u_k} .
+\]
+The signature truncated at depth $m$ keeps all words of length
+$1 \le k \le m$, which gives $d + d^2 + \dots + d^m$ numbers. For one
+straight segment with increment $\delta \in \mathbb{R}^d$ the level-$k$
+term is $\delta^{\otimes k} / k!$, and the signatures of consecutive
+segments are combined with Chen's identity
+\cite{chen1958integration}, $S(X * Y) = S(X) \otimes S(Y)$, where $*$
+joins two paths end to end. The signature therefore works directly with
+uneven times: a long gap is simply a long segment of the path. Because
+time only increases along the path, no part of it is retraced, and by the
+uniqueness theorem of Hambly and Lyons \cite{hambly2010uniqueness} the
+full (untruncated) signature determines the path. We use depths $m = 2$
+and $m = 3$.
+
+\subsubsection*{Dynamic mode decomposition}
+The Koopman operator \cite{koopman1931, mezic2005spectral} describes a
+dynamical system through linear dynamics of functions of its state, and
+DMD \cite{schmid2010dmd, kutz2016dmd} estimates its leading eigenvalues
+from data. DMD needs equally spaced points, so a series with missing
+points is first interpolated linearly back onto its original grid of $T$
+points. With $q = 5$ delays, the series $s_1, \dots, s_T \in \mathbb{R}^c$
+gives the vectors $h_j = (s_j, \dots, s_{j+q-1}) \in \mathbb{R}^{qc}$,
+which form the two matrices
+$H = [h_1, \dots, h_{N-1}]$ and $H' = [h_2, \dots, h_N]$, with
+$N = T - q + 1$. Using the truncated singular value decomposition
+$H \approx U_r \Sigma_r V_r^\top$ with $r = 4$, the reduced operator is
+\[
+  \tilde{A} = U_r^\top H' V_r \Sigma_r^{-1} .
+\]
+Its eigenvalues $\lambda_1, \dots, \lambda_r$, ordered by modulus, are the
+DMD eigenvalues. Each gives a growth rate $\log\lvert\lambda_k\rvert$ and
+a frequency $\lvert\arg\lambda_k\rvert$ per time step, so the method has
+$2r = 8$ features.
+
+\subsection{Neural models}\label{sec:neural}
+
+The second family reads the series point by point and updates a hidden
+state $h \in \mathbb{R}^H$; a linear layer maps the state after the last
+observation to $K$ class scores. All models receive the same input: the
+values are normalised per channel with the mean and standard deviation of
+the training set, and the times are counted in original time steps, so
+$\Delta t_i = 1$ when no point is missing. Series in one batch are padded
+to the same length, and padding never changes the output.
+
+\subsubsection*{GRU and LSTM}
+The GRU \cite{cho2014gru} and the LSTM \cite{hochreiter1997lstm} are the
+standard discrete-time baselines. They do not model time, so the gap is
+given to them as an extra input channel: the input at step $i$ is
+$(x_i, \Delta t_i)$.
+
+\subsubsection*{CfC}
+Closed-form continuous-time networks \cite{hasani2022cfc} replace the
+solution of an ODE by a formula in which the elapsed time appears
+explicitly. With $u = \phi\bigl(W[x_i; h_{i-1}] + b\bigr)$, where $\phi$
+is a scaled $\tanh$, the update is
+\begin{align*}
+  h_i &= \bigl(1 - \sigma_i\bigr) \odot \tanh(W_f u + b_f)
+      + \sigma_i \odot \tanh(W_g u + b_g), \\
+  \sigma_i &= \operatorname{sigmoid}\bigl((W_a u + b_a)\,\Delta t_i
+      + W_b u + b_b\bigr),
+\end{align*}
+so the gap $\Delta t_i$ decides how far the state moves from one value
+towards the other.
+
+\subsubsection*{LTC}
+In liquid time-constant networks \cite{hasani2021ltc} every neuron $k$
+follows an ODE whose time constant depends on the input,
+\[
+  C_k \frac{dv_k}{dt} = g_k\bigl(e_k - v_k\bigr)
+  + \sum_j w_{jk}\, \operatorname{sigmoid}\bigl(\gamma_{jk}(v_j - \mu_{jk})\bigr)
+    \bigl(E_{jk} - v_k\bigr),
+\]
+where the sum runs over all neurons $j$ and over the inputs, and the
+capacitances $C_k$, conductances $g_k$ and weights $w_{jk}$ are kept
+positive by a softplus. Between two observations the ODE is solved with
+$6$ semi-implicit Euler steps of length $\delta = \Delta t_i / 6$:
+\[
+  v_k \leftarrow
+  \frac{C_k v_k / \delta + g_k e_k + \sum_j w_{jk} \sigma_{jk} E_{jk}}
+       {C_k / \delta + g_k + \sum_j w_{jk} \sigma_{jk}},
+  \qquad
+  \sigma_{jk} = \operatorname{sigmoid}\bigl(\gamma_{jk}(v_j - \mu_{jk})\bigr).
+\]
+Because the update divides by $\delta$, the gap of the first point is set
+to at least one time step.
+
+\subsubsection*{Neural CDE}
+A neural controlled differential equation \cite{kidger2020ncde} lets the
+data drive the hidden state. The observations, with time as an extra
+channel, are joined by straight lines into a path
+$X \colon [t_1, t_n] \to \mathbb{R}^{c+1}$, and
+\[
+  z(t) = z(t_1) + \int_{t_1}^{t} f_\theta\bigl(z(s)\bigr)\, dX(s),
+  \qquad
+  z(t_1) = \ell_\theta(t_1, x_1),
+\]
+where $\ell_\theta$ is a linear map and
+$f_\theta(z) = \tanh\bigl(W_2 \operatorname{ReLU}(W_1 z + b_1) + b_2\bigr)$,
+reshaped into an $H \times (c+1)$ matrix. On the segment from $t_{i-1}$ to
+$t_i$ the path has the constant increment
+$\Delta X_i = (t_i, x_i) - (t_{i-1}, x_{i-1})$. The equation is solved
+with $n_i = \lceil \Delta t_i \rceil$ steps of the classical fourth-order
+Runge--Kutta method, each with increment $\Delta X_i / n_i$, so a long gap
+gets as many solver steps as the points it replaces. The class scores are
+computed from $z(t_n)$.
+
+\subsubsection*{Training}
+All neural models are trained in the same way: cross-entropy loss, the
+Adam optimiser, batches of 32 series and at most 500 epochs. Training
+stops when the validation loss has not improved for 50 epochs, and the
+weights of the best epoch are kept. The hidden size $H \in \{32, 64\}$ and
+the learning rate $\eta \in \{10^{-3}, 3 \cdot 10^{-3}, 10^{-2}\}$ are
+chosen from the same grid for every model, separately for each dataset,
+as the pair with the lowest validation loss on the data without missing
+points. The test set is not used for any choice.
+
+\subsection{Experimental design}\label{sec:design}
+
+\subsubsection*{Data}
+We use four multivariate datasets of the UEA archive
+\cite{bagnall2018uea}, with their official
+train/test splits (Table~\ref{tab:datasets}). Within each dataset all
+series have the same length and the classes are balanced. A third
+experiment on data that is irregular by nature is planned.
 
 \begin{table}[ht]
 \centering
-\caption{Datasets. \todo{fill in}}
+\caption{Datasets: number of series in the official splits, channels $c$,
+length $T$ and classes $K$. The last column is the number of signature
+features at depth 3, $d + d^2 + d^3$ with $d = c + 1$.}
 \label{tab:datasets}
-\begin{tabular}{lccccc}
+\begin{tabular}{lrrrrrr}
 \toprule
-Dataset & Train & Test & Channels & Length & Classes \\
+Dataset & Train & Test & $c$ & $T$ & $K$ & Sig.\ depth 3 \\
 \midrule
-BasicMotions & & & & & \\
-Libras & & & & & \\
-NATOPS & & & & & \\
-ArticularyWordRecognition & & & & & \\
+BasicMotions & 40 & 40 & 6 & 100 & 4 & 399 \\
+Libras & 180 & 180 & 2 & 45 & 15 & 39 \\
+NATOPS & 180 & 180 & 24 & 51 & 6 & 16\,275 \\
+ArticularyWordRecognition & 275 & 300 & 9 & 144 & 25 & 1\,110 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\subsubsection*{Protocol}
+Every method is run with $p \in \{0, 0.3, 0.5, 0.7\}$ of the points
+removed, using the gaps of Section~\ref{sec:missing}. For $p > 0$ the
+experiment is repeated with three seeds, which give three different sets
+of gaps; for $p = 0$ there is nothing random to remove, so it is run once.
+The feature methods are fitted on the whole training set. The neural
+models keep a stratified 20\% of the training set for validation (early
+stopping and the choice of $H$ and $\eta$) and are trained on the rest.
+The test set is used once, at the end.
+
+\subsubsection*{Baselines}
+Summary statistics with logistic regression are the baseline for the
+feature methods, and the GRU and LSTM are the baselines for the
+continuous-time networks.
+
+\subsubsection*{Metrics}
+We report test accuracy and macro-F1 (the F1 score averaged over the
+classes, so that every class counts equally), the training time (feature
+extraction and fitting, or the training loop), and the model size: the
+number of features or of trainable parameters. Clean data ($p = 0$)
+answers RQ1, the comparison across $p$ answers RQ2, and the comparison of
+accuracy against time and size answers RQ3.

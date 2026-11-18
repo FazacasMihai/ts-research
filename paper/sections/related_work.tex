@@ -1,41 +1,126 @@
 \section{Related work}\label{sec:related}
 
 \subsection{Recurrent and continuous-time neural networks}
-\todo{LSTM \cite{hochreiter1997lstm}, GRU \cite{cho2014gru}; neural ODEs
-\cite{chen2018neuralode}; LTC \cite{hasani2021ltc}; CfC
-\cite{hasani2022cfc}; Neural CDE \cite{kidger2020ncde}, Neural RDE
-\cite{morrill2021nrde}, irregular-data variants \cite{morrill2020generalised}.
-What each paper reports on irregular or missing data.}
+
+Recurrent networks such as the LSTM \cite{hochreiter1997lstm} and the GRU
+\cite{cho2014gru} are the standard neural models for sequences. They
+update their state once per observation and have no notion of the time
+between observations; the usual fix is to give the time gap as an extra
+input, as we do for our baselines.
+
+Neural ordinary differential equations \cite{chen2018neuralode} define a
+hidden state that evolves continuously in time, which makes them a natural
+fit for irregular data. Their solution, however, is fixed by the initial
+condition, so later observations must be included by other means.
+Neural controlled differential equations \cite{kidger2020ncde} solve this
+by letting the interpolated data path drive the hidden state, as in
+Section~\ref{sec:neural}. Kidger et al.\ evaluated them on the
+CharacterTrajectories dataset of the UEA archive with 30, 50 and 70\% of
+the observations dropped, chosen uniformly at random and independently
+for each series, the same for every model. With five runs, the Neural CDE
+reached 98.7\%, 98.8\% and 98.6\% test accuracy, against 93.6\%, 91.3\%
+and 90.4\% for a GRU with the time gap as input, and above other ODE- and
+RNN-based models such as GRU-D and ODE-RNN \cite{kidger2020ncde}. Our
+missing-data protocol follows theirs. For long series, Neural rough
+differential equations \cite{morrill2021nrde} replace the path by
+log-signatures over short intervals, which reduces the number of solver
+steps.
+
+Liquid time-constant networks \cite{hasani2021ltc} build each neuron as a
+linear first-order dynamical system whose time constant is modulated by
+nonlinear gates; the authors show that these dynamics are stable and
+bounded and report improved results on time-series prediction tasks
+compared with classical and modern RNNs. Because the state is computed by
+a numerical ODE solver, LTCs are slow. Closed-form continuous-time networks
+\cite{hasani2022cfc} approximate the solution of the LTC dynamics in
+closed form, with the time appearing explicitly in the formula; the
+authors report models that are between one and five orders of magnitude
+faster in training and inference than their ODE-based counterparts. Our
+case study measures this difference in cost directly
+(Table~\ref{tab:cost}).
 
 \subsection{Path signatures}
-\todo{Chen \cite{chen1958integration}, uniqueness \cite{hambly2010uniqueness},
-primers \cite{chevyrev2026primer, lyons2022sigml}, signatures in machine
-learning \cite{kidger2019deepsig, fermanian2021framing,
-fermanian2023newdirections}, signature kernels \cite{salvi2021goursat},
-recursive signatures \cite{sun2024recursig}.}
+
+The signature goes back to Chen \cite{chen1958integration}, who showed
+that the iterated integrals of a path combine by what is now called Chen's
+identity. Hambly and Lyons \cite{hambly2010uniqueness} proved that the
+signature determines a path of bounded variation up to tree-like
+equivalence, which makes it a faithful summary of a series. Introductions
+for machine learning are given by Chevyrev and Kormilitzin
+\cite{chevyrev2026primer} and by Lyons and McLeod \cite{lyons2022sigml}.
+
+Morrill et al.\ \cite{morrill2020generalised} unify the many variants of
+the signature method (augmentations such as the time channel and the
+basepoint, windows, and the choice of signature or log-signature) into
+one generalised signature method. From a study on 26 datasets they derive
+a default set of choices and show that it is competitive with benchmark
+methods for multivariate time series classification; our signature
+features use two of these augmentations. Signatures have also been used
+inside neural networks, as a layer that can be trained
+\cite{kidger2019deepsig}, to view recurrent networks as kernel methods
+\cite{fermanian2021framing}, and through the signature kernel, which can be
+computed by solving a Goursat PDE \cite{salvi2021goursat}. Sun et al.\
+\cite{sun2024recursig} use signatures for explainable classification of
+network time series. A survey of recent applications of rough path theory
+is given by Fermanian et al.\ \cite{fermanian2023newdirections}.
 
 \subsection{Koopman operator and dynamic mode decomposition}
-\todo{Koopman \cite{koopman1931}, spectral view \cite{mezic2005spectral},
-DMD \cite{schmid2010dmd, kutz2016dmd}, deep Koopman
-\cite{lusch2018deepkoopman}.}
+
+Koopman \cite{koopman1931} showed that a nonlinear dynamical system can be
+described by a linear operator acting on functions of its state. Mezi\'c
+\cite{mezic2005spectral} used the spectrum of this operator for model
+reduction and decomposition. Dynamic mode decomposition
+\cite{schmid2010dmd} extracts dynamic modes and their eigenvalues directly
+from data; the book by Kutz et al.\ \cite{kutz2016dmd} explains how these
+approximate the Koopman spectrum and covers the variants of DMD, including
+delay coordinates, which we use to apply DMD to a single series. Lusch et al.\ \cite{lusch2018deepkoopman} learn the
+functions in which the dynamics become linear with a neural network. In
+this work DMD serves as a very small, interpretable feature set; the case
+study shows that eight eigenvalue features are not enough for
+classification.
 
 \subsection{Benchmarks and expected results}
-\todo{Time series classification benchmarks \cite{bagnall2017bakeoff} and
-the UEA multivariate archive. Table of published accuracies on BasicMotions,
-Libras, NATOPS and ArticularyWordRecognition, to show where similar or better
-results are expected. Check every number and source before adding it to
-references.bib.}
+
+Large comparisons of time series classifiers are made on public
+archives with fixed train/test splits, such as the univariate study of
+Bagnall et al.\ \cite{bagnall2017bakeoff}. For multivariate data, the UEA
+archive \cite{bagnall2018uea} provides 30 datasets, including the four
+used here, with benchmark results of nearest-neighbour classifiers.
+Table~\ref{tab:published} compares these published results with our
+feature methods on clean data. The archive reports 1-NN with the
+Euclidean distance (ED) and with dynamic time warping applied to each
+dimension separately (DTW$_I$) or to all dimensions together (DTW$_D$).
 
 \begin{table}[ht]
 \centering
-\caption{Published test accuracy on the datasets used here.
-\todo{fill in from verified sources}}
+\caption{Test accuracy on the original train/test splits without missing
+points. Top: published 1-NN baselines (un-normalised data, Table~3 of
+\cite{bagnall2018uea}). Bottom: our feature methods
+(Table~\ref{tab:features}).}
 \label{tab:published}
 \begin{tabular}{lcccc}
 \toprule
-Method (source) & BasicMotions & Libras & NATOPS & ArticularyWR \\
+Method & BasicMotions & Libras & NATOPS & ArticularyWR \\
 \midrule
-\todo{method} & -- & -- & -- & -- \\
+1-NN ED \cite{bagnall2018uea} & 0.675 & 0.833 & 0.850 & 0.970 \\
+1-NN DTW$_I$ \cite{bagnall2018uea} & 1.000 & 0.894 & 0.850 & 0.980 \\
+1-NN DTW$_D$ \cite{bagnall2018uea} & 0.975 & 0.872 & 0.883 & 0.987 \\
+\midrule
+Summary stats (ours) & 1.000 & 0.683 & 0.833 & 0.893 \\
+Signature $m = 3$ (ours) & 0.900 & 0.700 & 0.872 & 0.980 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+The 1-NN DTW classifiers are the bar that a new method should reach on
+these datasets. The depth-3 signature with logistic regression comes
+close on NATOPS and ArticularyWordRecognition (within 0.011 and 0.007 of
+DTW$_D$) but is clearly below on Libras (0.700 against 0.894), where the
+best published baseline is still far ahead. The target for clean data is
+therefore at least the DTW level.
+% Later: add stronger recent multivariate classifiers (e.g. the multivariate
+% bake-off of Ruiz et al.) once their publication details and numbers are verified.
+Under missing data, the result of Kidger et al.\ \cite{kidger2020ncde} on
+CharacterTrajectories suggests that a Neural CDE can keep its accuracy
+almost unchanged up to 70\% dropped points; this is the behaviour that
+RQ2 tests on our datasets.

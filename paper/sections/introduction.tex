@@ -1,17 +1,42 @@
 \section{Introduction}\label{sec:intro}
 
-\todo{Motivation: many real time series are sampled at uneven times or have
-missing points (sensors, medical records, user activity). Standard recurrent
-networks assume one value per fixed time step.}
+Many real time series are not sampled on a regular grid. Sensors fail or
+skip readings, medical measurements are taken when a patient needs them,
+and user activity is recorded only when something happens. The usual
+neural models for sequences, the LSTM \cite{hochreiter1997lstm} and the
+GRU \cite{cho2014gru}, read one value per step and have no notion of the
+time between two values, so irregular data has to be filled in first or
+the time gap has to be added as an extra input.
 
-\todo{Two families that handle time directly: continuous-time networks (LTC,
-CfC, Neural CDE) and mathematical features of the path (signatures,
-Koopman / DMD) with a simple classifier.}
+Two families of methods use the observation times directly. The first
+consists of neural networks whose hidden state evolves in continuous
+time: liquid time-constant networks (LTC) \cite{hasani2021ltc}, their
+closed-form approximation (CfC) \cite{hasani2022cfc}, and neural controlled
+differential equations (Neural CDE) \cite{kidger2020ncde}. The second are
+mathematical features of the series followed by a simple classifier: path
+signatures \cite{chen1958integration, lyons2022sigml}, which describe the
+shape of the path and accept uneven times, and dynamic mode decomposition
+\cite{schmid2010dmd}, which summarises the series by the eigenvalues of a
+linear model of its dynamics. The features are much cheaper to compute
+than the networks are to train. This work compares the two families under
+one protocol and asks three questions:
+\begin{itemize}
+\item[RQ1] How do CfC, LTC and the Neural CDE compare to the LSTM and GRU on
+regularly sampled time series?
+\item[RQ2] What happens to each model when points are missing and the time
+steps become uneven?
+\item[RQ3] Can signature or DMD features with a simple classifier get close
+to these networks, and how much cheaper are they?
+\end{itemize}
 
-\todo{Research questions RQ1--RQ3, stated as in the plan.}
-
-\todo{Contributions: one shared protocol for both families on public UEA
-datasets, with 0/30/50/70\% of the points removed; accuracy, macro-F1,
-training time and model size.}
-
-\todo{Outline of the paper.}
+To answer them, we use four public datasets of the UEA archive
+\cite{bagnall2018uea} and remove 30, 50 or 70\% of the points of every
+series at random, following the protocol of Kidger et al.\
+\cite{kidger2020ncde}, with the same gaps for every method. All methods
+are measured by accuracy, macro-F1, training time and model size. This
+report describes the setup and the first results: the full experiment
+for the feature methods and a first, untuned run of the neural models.
+Section~\ref{sec:related} reviews related work and the published results
+on these datasets, Section~\ref{sec:model} gives the mathematical model of
+the data, the methods and the experiments, and Section~\ref{sec:case}
+presents the case study.

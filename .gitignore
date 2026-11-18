@@ -15,7 +15,9 @@ CLAUDE.md
 # Downloaded datasets and caches (re-created by the scripts)
 data/
 
-# LaTeX build files
+# LaTeX build files (PyCharm / TeXiFy writes to out/ and auxil/)
+out/
+auxil/
 paper/*.aux
 paper/*.log
 paper/*.bbl
