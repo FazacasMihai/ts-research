@@ -87,7 +87,7 @@ Bagnall et al.\ \cite{bagnall2017bakeoff}. For multivariate data, the UEA
 archive \cite{bagnall2018uea} provides 30 datasets, including the four
 used here, with benchmark results of nearest-neighbour classifiers.
 Table~\ref{tab:published} compares these published results with our
-feature methods on clean data. The archive reports 1-NN with the
+methods on clean data. The archive reports 1-NN with the
 Euclidean distance (ED) and with dynamic time warping applied to each
 dimension separately (DTW$_I$) or to all dimensions together (DTW$_D$).
 
@@ -95,8 +95,9 @@ dimension separately (DTW$_I$) or to all dimensions together (DTW$_D$).
 \centering
 \caption{Test accuracy on the original train/test splits without missing
 points. Top: published 1-NN baselines (un-normalised data, Table~3 of
-\cite{bagnall2018uea}). Bottom: our feature methods
-(Table~\ref{tab:features}).}
+\cite{bagnall2018uea}). Bottom: our two best feature methods
+(Table~\ref{tab:features}) and two tuned neural models
+(Table~\ref{tab:tuned}, one seed).}
 \label{tab:published}
 \begin{tabular}{lcccc}
 \toprule
@@ -108,6 +109,8 @@ Method & BasicMotions & Libras & NATOPS & ArticularyWR \\
 \midrule
 Summary stats (ours) & 1.000 & 0.683 & 0.833 & 0.893 \\
 Signature $m = 3$ (ours) & 0.900 & 0.700 & 0.872 & 0.980 \\
+GRU, tuned (ours) & 0.850 & 0.772 & 0.922 & 0.867 \\
+Neural CDE, tuned (ours) & 0.975 & 0.733 & 0.900 & 0.673 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -116,8 +119,11 @@ The 1-NN DTW classifiers are the bar that a new method should reach on
 these datasets. The depth-3 signature with logistic regression comes
 close on NATOPS and ArticularyWordRecognition (within 0.011 and 0.007 of
 DTW$_D$) but is clearly below on Libras (0.700 against 0.894), where the
-best published baseline is still far ahead. The target for clean data is
-therefore at least the DTW level.
+best published baseline is still far ahead. On NATOPS the tuned GRU,
+LSTM and Neural CDE (0.922, 0.917 and 0.900) are above both DTW
+baselines, but on Libras none of our methods reaches them; the best is the
+GRU with 0.772. The target for clean data is therefore at least the DTW
+level.
 % Later: add stronger recent multivariate classifiers (e.g. the multivariate
 % bake-off of Ruiz et al.) once their publication details and numbers are verified.
 Under missing data, the result of Kidger et al.\ \cite{kidger2020ncde} on

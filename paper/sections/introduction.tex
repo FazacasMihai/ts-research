@@ -34,8 +34,10 @@ To answer them, we use four public datasets of the UEA archive
 series at random, following the protocol of Kidger et al.\
 \cite{kidger2020ncde}, with the same gaps for every method. All methods
 are measured by accuracy, macro-F1, training time and model size. This
-report describes the setup and the first results: the full experiment
-for the feature methods and a first, untuned run of the neural models.
+report describes the setup and the results: the full experiment for the
+feature methods, an equal hyperparameter search for the neural models,
+and a test run of the tuned models, on clean data for four of them and
+with missing points for the GRU, LSTM and CfC.
 Section~\ref{sec:related} reviews related work and the published results
 on these datasets, Section~\ref{sec:model} gives the mathematical model of
 the data, the methods and the experiments, and Section~\ref{sec:case}

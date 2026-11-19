@@ -1,0 +1,86 @@
+{
+  "ArticularyWordRecognition": {
+    "CfC": {
+      "lr": 0.01,
+      "hidden": 32
+    },
+    "GRU": {
+      "lr": 0.01,
+      "hidden": 64
+    },
+    "LSTM": {
+      "lr": 0.01,
+      "hidden": 32
+    },
+    "NeuralCDE": {
+      "lr": 0.003,
+      "hidden": 32
+    }
+  },
+  "BasicMotions": {
+    "CfC": {
+      "lr": 0.001,
+      "hidden": 32
+    },
+    "GRU": {
+      "lr": 0.003,
+      "hidden": 32
+    },
+    "LSTM": {
+      "lr": 0.001,
+      "hidden": 64
+    },
+    "LTC": {
+      "lr": 0.01,
+      "hidden": 32
+    },
+    "NeuralCDE": {
+      "lr": 0.003,
+      "hidden": 64
+    }
+  },
+  "Libras": {
+    "CfC": {
+      "lr": 0.001,
+      "hidden": 64
+    },
+    "GRU": {
+      "lr": 0.01,
+      "hidden": 64
+    },
+    "LSTM": {
+      "lr": 0.01,
+      "hidden": 64
+    },
+    "LTC": {
+      "lr": 0.01,
+      "hidden": 32
+    },
+    "NeuralCDE": {
+      "lr": 0.003,
+      "hidden": 64
+    }
+  },
+  "NATOPS": {
+    "CfC": {
+      "lr": 0.001,
+      "hidden": 64
+    },
+    "GRU": {
+      "lr": 0.003,
+      "hidden": 32
+    },
+    "LSTM": {
+      "lr": 0.01,
+      "hidden": 32
+    },
+    "LTC": {
+      "lr": 0.003,
+      "hidden": 32
+    },
+    "NeuralCDE": {
+      "lr": 0.001,
+      "hidden": 64
+    }
+  }
+}

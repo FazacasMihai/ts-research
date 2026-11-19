@@ -1,24 +1,28 @@
 \section{Case study}\label{sec:case}
 
-This section reports the first results on the four datasets of
+This section reports the results on the four datasets of
 Table~\ref{tab:datasets}. The feature methods were run on the full grid of
-Section~\ref{sec:design}. The neural models were run only in a first,
-smaller check, before the hyperparameter search, so their results are
-preliminary.
+Section~\ref{sec:design}. For the neural models there are three sets of
+runs: a first, untuned check of all five models; the hyperparameter
+search; and a test run of the tuned models, for four models on clean data
+and for GRU, LSTM and CfC also with missing points. The full grid for the
+Neural CDE and LTC with missing points was not run, because of its cost.
 
 \subsection{Setup}
 
 All methods are implemented in Python 3.14 with NumPy 2.3,
 scikit-learn 1.9 \cite{pedregosa2011sklearn} and PyTorch 2.15; the
 datasets are loaded with aeon 1.6, and the CfC and LTC cells come from
-ncps 1.0.1. The signatures and DMD are our own NumPy code. All runs were
-made on one laptop CPU (Intel Core Ultra 7 155H, 32 GB of memory), without
-a GPU, so the times below are wall-clock times on that machine and are
-only comparable with each other. The results of every run are stored in
-CSV files in the project repository.
+ncps 1.0.1. The signatures and DMD are our own NumPy code. The feature
+methods and the first neural run were made on one laptop CPU (Intel Core
+Ultra 7 155H, 32 GB of memory); the hyperparameter search and the tuned
+runs were made on a GPU in Google Colab. All times are wall-clock times
+and are only comparable between runs on the same machine. The results of
+every run are stored in CSV files in the project repository.
 
 Three implementation problems came up and are worth reporting, because
-they change the results without raising an error.
+they stop the training or, worse, change the results without raising an
+error.
 \begin{itemize}
 \item The sequence wrappers for CfC and LTC in ncps 1.0.1 reshape the
 time gaps of a batch to a vector of length equal to the batch size before
@@ -109,7 +113,7 @@ The spread over seeds is at most 0.118 (DMD on BasicMotions, $p = 0.5$)
 and below 0.06 in most cells, so differences of a few hundredths between
 methods are not significant with three seeds.
 
-\subsection{Neural models (preliminary)}
+\subsection{Neural models: first run}
 
 The five neural models were first run on BasicMotions and Libras with
 $p = 0$ and $p = 0.5$, one seed, and the same default settings for all
@@ -148,9 +152,9 @@ that advantage when half of the points are removed. A feature method is
 the most accurate in the other three settings. CfC stopped early in every
 run (best epoch between 16 and 89), and LTC trained slowly and stayed far
 behind on Libras; this may point to unsuitable default settings rather
-than to a property of the models. These results therefore do not yet answer RQ1 and
-RQ2; they motivate the equal hyperparameter search and the full grid with
-three seeds.
+than to a property of the models. These results motivated the equal
+hyperparameter search below. They remain the only results for the Neural
+CDE and LTC with missing points.
 
 The Neural CDE was first solved with a single Runge--Kutta step per
 segment, so removing points also removed solver steps. With that solver
@@ -159,7 +163,122 @@ With one step per original time step (Section~\ref{sec:neural}) it is
 0.550 and 0.478, the same at $p = 0$. The coarser solver therefore
 explains only a small part of the drop.
 
-\subsection{Cost}
+\subsection{Hyperparameter search}
+
+The grid of Section~\ref{sec:neural} gives six settings per model and
+dataset. Of the 120 runs, 114 were completed; the six LTC runs on
+ArticularyWordRecognition were stopped because of their cost
+(Section~\ref{sec:cost}). Table~\ref{tab:tuning} shows the chosen settings
+and their validation accuracy.
+
+\begin{table}[ht]
+\centering
+\small
+\caption{Hyperparameter search on clean data (seed 0): validation accuracy
+of the chosen setting, with its learning rate $\eta$ and hidden size $H$
+in brackets. The validation sets have 8, 36, 36 and 55 series.}
+\label{tab:tuning}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lcccc}
+\toprule
+Model & BasicMotions & Libras & NATOPS & ArticularyWR \\
+\midrule
+GRU & 0.875 (0.003, 32) & 0.806 (0.01, 64) & 1.000 (0.003, 32) & 0.836 (0.01, 64) \\
+LSTM & 1.000 (0.001, 64) & 0.722 (0.01, 64) & 1.000 (0.01, 32) & 0.855 (0.01, 32) \\
+CfC & 0.875 (0.001, 32) & 0.417 (0.001, 64) & 0.611 (0.001, 64) & 0.800 (0.01, 32) \\
+Neural CDE & 1.000 (0.003, 64) & 0.750 (0.003, 64) & 0.944 (0.001, 64) & 0.764 (0.003, 32) \\
+LTC & 1.000 (0.01, 32) & 0.333 (0.01, 32) & 0.250 (0.003, 32) & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The default setting ($\eta = 10^{-3}$, $H = 64$) was chosen in only 4 of
+the 19 cases, so the search changes the comparison. LTC learned little on
+Libras and NATOPS: its best validation accuracy was 0.333 and 0.250,
+against a chance level of 0.067 and 0.167. The validation sets are
+small, so several settings often reach the same accuracy and the choice
+falls to small differences in the validation loss; on BasicMotions one
+validation series is worth 0.125.
+
+\subsection{Neural models: tuned}
+
+With the chosen settings, GRU, LSTM, CfC and the Neural CDE were run on
+clean data with seed 0, and GRU, LSTM and CfC also on the full grid with
+missing points (three seeds). LTC was left out, since its search was not
+complete. Table~\ref{tab:tuned} shows the results, with the depth-3
+signature from Table~\ref{tab:features} for comparison. Macro-F1 is again
+close to the accuracy (the means differ by at most 0.05).
+
+\begin{table}[ht]
+\centering
+\small
+\caption{Test accuracy of the tuned neural models. $p = 0$: one run
+(seed 0). $p > 0$: mean over three seeds, with the standard deviation in
+brackets. The best neural model of each column is in bold; the last row of
+each block is the depth-3 signature (Table~\ref{tab:features}).}
+\label{tab:tuned}
+\begin{tabular}{lcccc}
+\toprule
+Method & $p = 0$ & $p = 0.3$ & $p = 0.5$ & $p = 0.7$ \\
+\midrule
+\multicolumn{5}{l}{\emph{BasicMotions}} \\
+GRU & 0.850 & \textbf{0.942} (0.014) & \textbf{0.892} (0.052) & \textbf{0.858} (0.038) \\
+LSTM & 0.800 & 0.867 (0.104) & 0.692 (0.225) & 0.842 (0.038) \\
+CfC & 0.725 & 0.708 (0.146) & 0.658 (0.080) & 0.608 (0.166) \\
+Neural CDE & \textbf{0.975} & -- & -- & -- \\
+Signature $m=3$ & 0.900 & 0.858 (0.063) & 0.867 (0.029) & 0.758 (0.076) \\
+\midrule
+\multicolumn{5}{l}{\emph{Libras}} \\
+GRU & \textbf{0.772} & \textbf{0.687} (0.006) & \textbf{0.617} (0.059) & 0.446 (0.069) \\
+LSTM & 0.689 & 0.607 (0.047) & 0.585 (0.023) & \textbf{0.478} (0.050) \\
+CfC & 0.461 & 0.389 (0.089) & 0.409 (0.056) & 0.426 (0.065) \\
+Neural CDE & 0.733 & -- & -- & -- \\
+Signature $m=3$ & 0.700 & 0.689 (0.017) & 0.683 (0.025) & 0.620 (0.053) \\
+\midrule
+\multicolumn{5}{l}{\emph{NATOPS}} \\
+GRU & \textbf{0.922} & \textbf{0.915} (0.025) & \textbf{0.891} (0.012) & \textbf{0.850} (0.034) \\
+LSTM & 0.917 & 0.861 (0.047) & 0.861 (0.040) & 0.811 (0.048) \\
+CfC & 0.617 & 0.706 (0.054) & 0.746 (0.099) & 0.756 (0.043) \\
+Neural CDE & 0.900 & -- & -- & -- \\
+Signature $m=3$ & 0.872 & 0.867 (0.015) & 0.859 (0.017) & 0.820 (0.040) \\
+\midrule
+\multicolumn{5}{l}{\emph{ArticularyWordRecognition}} \\
+GRU & \textbf{0.867} & \textbf{0.887} (0.015) & \textbf{0.888} (0.005) & \textbf{0.897} (0.029) \\
+LSTM & 0.840 & 0.798 (0.012) & 0.831 (0.042) & 0.879 (0.032) \\
+CfC & 0.633 & 0.671 (0.024) & 0.671 (0.032) & 0.707 (0.044) \\
+Neural CDE & 0.673 & -- & -- & -- \\
+Signature $m=3$ & 0.980 & 0.979 (0.004) & 0.979 (0.004) & 0.984 (0.004) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Four observations stand out.
+\begin{enumerate}
+\item On the same test data as the first run ($p = 0$, seed 0), tuning
+helped most on Libras: the GRU went from 0.600 to 0.772 and the LSTM from
+0.572 to 0.689. The Neural CDE on BasicMotions went from 0.825 to 0.975.
+CfC did not improve on Libras (0.478 and 0.461), and the GRU and LSTM on
+BasicMotions lost one test series each (0.025).
+\item On clean data the GRU is the best neural model on three datasets.
+The Neural CDE is the best on BasicMotions and close to the GRU on NATOPS
+and Libras, but far behind on ArticularyWordRecognition (0.673 against
+0.867), where several of its settings were unstable during the search
+(validation loss above 3). CfC is the weakest model on every dataset.
+\item With missing points, the GRU with the time gap as input loses at
+most 0.072 (NATOPS, $p = 0.7$) on BasicMotions, NATOPS and
+ArticularyWordRecognition, but on
+Libras it falls from 0.772 to 0.446 at $p = 0.7$, where only 14 of the 45
+points are left. The depth-3 signature loses only 0.080 there and is the
+better method at $p = 0.5$ and $p = 0.7$.
+\item The accuracy of CfC rises when points are removed on NATOPS (0.617
+to 0.756) and ArticularyWordRecognition (0.633 to 0.707). Its settings
+were chosen on clean data, so this may mean that CfC has difficulty with
+the longer sequences rather than with the gaps; we have not tested this.
+\end{enumerate}
+The spread over seeds is large on BasicMotions (up to 0.225), where the
+validation set has only 8 series, and at most 0.099 on the other datasets.
+
+\subsection{Cost}\label{sec:cost}
 
 The feature methods are cheap: computing the features and fitting the
 classifier takes less than 0.4\,s on BasicMotions and Libras, and at most
@@ -195,16 +314,40 @@ LTC & 18\,512 & 800.5 & 2.23 \\
 \end{tabular}
 \end{table}
 
+The GPU runs show the same large differences. The 114 runs of the hyperparameter
+search took 3.4 hours in total; a run took on average 2\,s for the GRU and
+the LSTM, 68\,s for CfC, 204\,s for LTC (on the three smaller datasets) and
+291\,s for the Neural CDE. In the tuned run on clean
+ArticularyWordRecognition, the GRU trained in 1.4\,s and the Neural CDE in
+1\,032\,s. The GRU and LSTM use the fused recurrent layers of PyTorch,
+while CfC, LTC and the Neural CDE loop over the time steps in Python, with
+several small operations per step (six solver steps for LTC and four
+evaluations of $f_\theta$ for the Neural CDE).
+
 \subsection{Discussion}
 
-The first results give a partial answer to RQ3. The depth-3 signature
-with logistic regression is the best feature method on three of the four
-datasets, stays stable when up to 70\% of the points are removed, and
-trains in seconds; in the preliminary comparison, a feature method matches
-or beats the neural models in three of the four settings. For RQ1 and RQ2
-the evidence is not yet sufficient: the neural models were run with one
-seed, on two datasets, without tuning, and in that setting the
-continuous-time models were not better overall than the GRU and LSTM.
+For RQ1, the continuous-time models are not better than the GRU and LSTM
+on clean data in our setting. After an equal search, the GRU is the best
+neural model on three of the four datasets; the Neural CDE is the best on
+BasicMotions and close on two more, CfC is clearly behind, and LTC hardly
+learned on Libras and NATOPS.
+
+RQ2 is answered only in part. With missing points, the GRU with the time
+gap as input stays within 0.072 of its clean accuracy on three datasets
+and fails only on Libras; CfC shows no advantage. For the Neural CDE and
+LTC there is only the untuned first run, in which the Neural CDE lost more
+accuracy than the LSTM. We therefore found no evidence that the
+continuous-time models handle missing data better, but the evidence for
+the Neural CDE and LTC is weak.
+
+For RQ3, the depth-3 signature with logistic regression gets close to the
+networks and sometimes beats them. It is the best method of all on
+ArticularyWordRecognition (0.980 against at most 0.897), much more robust
+than the networks on Libras (at $p = 0.7$ it loses 0.080, the GRU 0.326),
+and 0.050 below the GRU on clean NATOPS. It is also cheaper: 0.17\,s on
+BasicMotions against 6\,s for the GRU and 82\,s for the Neural CDE on the
+same CPU (Table~\ref{tab:cost}). On BasicMotions the summary statistics
+are better than every network.
 
 The case study has clear limitations. The datasets are small (40 to 275
 training series), so a single wrong prediction moves the accuracy by up to
@@ -214,8 +357,10 @@ real irregular data often has structure, such as long gaps or more
 observations when something changes. Finally, the depth-3 signature has
 more features than there are training series on three of the four
 datasets (16\,275 features for 180 series on NATOPS), which is workable
-only because the classifier is regularised.
+only because the classifier is regularised. For the neural models, the
+clean results come from one seed, the settings were chosen on clean data
+with small validation sets, and the LTC search is incomplete.
 
-The next steps are the equal hyperparameter search and the full neural
-grid with three seeds on all four datasets, followed by a dataset with
+The next steps are the full grid with missing points for the Neural CDE
+and LTC, which needs a faster implementation, and a dataset with
 naturally irregular times.

@@ -52,8 +52,26 @@ downloaded once into `data/uea/`. For a quick run:
 python -m experiments.exp02_missing_data --datasets BasicMotions --seeds 0
 ```
 
+## Results
+
+| File | Contents |
+|---|---|
+| `results/exp02_missing_features.csv` | feature methods, all datasets, 0/30/50/70% removed, seeds 0-2 |
+| `results/exp03_preliminary.csv` | first neural run, default settings, seed 0 |
+| `results/tune_neural.csv` | hyperparameter search (114 of 120 runs; LTC on ArticularyWordRecognition not run) |
+| `results/tune_neural_best.json` | chosen settings per dataset and model |
+| `results/exp03_clean.csv` | tuned GRU, LSTM, CfC, Neural CDE on clean data, seed 0 |
+| `results/exp03_missing_fast.csv` | tuned GRU, LSTM, CfC with 30/50/70% removed, seeds 0-2 |
+
+The tuning and tuned runs were made on a Colab GPU, for example:
+
+```bash
+python -m experiments.exp03_neural --params results/tune_neural_best.json \
+    --models GRU LSTM CfC NeuralCDE --fracs 0 --seeds 0 --out results/exp03_clean.csv
+```
+
 ## Paper
 
 `paper/main.tex` (amsart) includes the chapters in `paper/sections/`; the bibliography is
-`paper/references.bib`. Red `[TODO: ...]` notes mark what is still to be written.
+`paper/references.bib`.
 Compile with `latexmk -pdf main.tex` inside `paper/`, or upload the folder to Overleaf.
