@@ -8,7 +8,7 @@ search; and a test run of the tuned models, for four models on clean data
 and for GRU, LSTM and CfC also with missing points. The full grid for the
 Neural CDE and LTC with missing points was not run, because of its cost.
 
-\subsection{Setup}
+\subsection{Setup}\label{sec:setup}
 
 All methods are implemented in Python 3.14 with NumPy 2.3,
 scikit-learn 1.9 \cite{pedregosa2011sklearn} and PyTorch 2.15; the
@@ -17,8 +17,9 @@ ncps 1.0.1. The signatures and DMD are our own NumPy code. The feature
 methods and the first neural run were made on one laptop CPU (Intel Core
 Ultra 7 155H, 32 GB of memory); the hyperparameter search and the tuned
 runs were made on a GPU in Google Colab. All times are wall-clock times
-and are only comparable between runs on the same machine. The results of
-every run are stored in CSV files in the project repository.
+and are only comparable between runs on the same machine. The code, the
+tests and the results of every run (as CSV files) are available at
+\url{https://github.com/FazacasMihai/ts-research}.
 
 Three implementation problems came up and are worth reporting, because
 they stop the training or, worse, change the results without raising an
